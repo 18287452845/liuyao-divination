@@ -8,6 +8,7 @@ import PaidianPage from './pages/PaidianPage';
 import JieguaPage from './pages/JieguaPage';
 import HistoryPage from './pages/HistoryPage';
 import ToolsPage from './pages/ToolsPage';
+import ApiKeySettingsPage from './pages/ApiKeySettingsPage';
 import './styles/index.css';
 
 // 主布局组件（包含导航栏的页面）
@@ -42,6 +43,12 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 className="hover:text-accent transition-colors font-semibold"
               >
                 工具箱
+              </Link>
+              <Link
+                to="/settings/api-key"
+                className="hover:text-accent transition-colors font-semibold"
+              >
+                API Key设置
               </Link>
 
               {/* 管理员菜单 */}
@@ -144,6 +151,16 @@ const App: React.FC = () => {
               <ProtectedRoute>
                 <MainLayout>
                   <ToolsPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/api-key"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <ApiKeySettingsPage />
                 </MainLayout>
               </ProtectedRoute>
             }

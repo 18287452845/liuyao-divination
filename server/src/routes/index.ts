@@ -52,6 +52,12 @@ import {
   getPermissions,
   assignPermissions
 } from '../controllers/roleController';
+import {
+  getApiKey,
+  updateApiKey,
+  deleteApiKey,
+  testApiKey
+} from '../controllers/apiKeyController';
 import { authenticate, requirePermissions, requireRoles } from '../middleware/auth';
 
 const router = express.Router();
@@ -95,6 +101,12 @@ router.post('/auth/change-password', authenticate, changePassword);
 router.put('/auth/profile', authenticate, updateProfile);
 router.post('/auth/refresh', authenticate, refreshToken);
 router.post('/auth/logout', authenticate, logout);
+
+// ==================== API Key 管理 ====================
+router.get('/user/api-key', authenticate, getApiKey);
+router.put('/user/api-key', authenticate, updateApiKey);
+router.delete('/user/api-key', authenticate, deleteApiKey);
+router.post('/user/api-key/test', authenticate, testApiKey);
 
 // ==================== 用户管理路由 ====================
 // 所有用户管理路由都需要管理员权限

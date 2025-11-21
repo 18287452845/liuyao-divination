@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import axios from 'axios';
 import { Lunar } from 'lunar-javascript';
+import { queryOne } from '../models/database';
 
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
@@ -8,6 +9,29 @@ const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 export const analyzeGua = async (req: Request, res: Response) => {
   try {
     const { benGua, bianGua, decoration, question, gender, bazi, timestamp } = req.body;
+
+    // 获取用户的 API Key
+    let apiKey = DEEPSEEK_API_KEY; // 默认使用系统API Key
+    
+    if (req.user?.userId) {
+      const user: any = await queryOne(
+        'SELECT deepseek_api_key FROM users WHERE id = ?',
+        [req.user.userId]
+      );
+      
+      if (user && user.deepseek_api_key) {
+        apiKey = user.deepseek_api_key; // 使用用户自己的API Key
+      }
+    }
+
+    // 检查是否有可用的API Key
+    if (!apiKey) {
+      res.status(400).json({ 
+        error: 'API Key未配置',
+        message: '请先在设置中配置您的 DeepSeek API Key'
+      });
+      return;
+    }
 
     // 构建解卦prompt
     const prompt = buildAnalysisPrompt(benGua, bianGua, decoration, question, gender, bazi, timestamp);
@@ -142,7 +166,7 @@ export const analyzeGua = async (req: Request, res: Response) => {
       },
       {
         headers: {
-          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
         responseType: 'stream'
