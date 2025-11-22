@@ -16,59 +16,40 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, logout, isAdmin } = useAuth();
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       {/* 导航栏 */}
-      <nav className="bg-gradient-to-r from-primary to-red-700 text-white shadow-lg">
+      <nav className="sticky top-0 z-50 glass border-b-0 shadow-lg">
         <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            <Link to="/" className="text-2xl font-bold flex items-center gap-2">
-              <span className="text-3xl">☯</span>
-              六爻排盘系统
+          <div className="flex items-center justify-between h-18 py-2">
+            <Link to="/" className="text-2xl font-bold flex items-center gap-3 group">
+              <div className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center text-2xl shadow-lg group-hover:scale-110 transition-transform duration-300">
+                ☯
+              </div>
+              <span className="font-calligraphy text-3xl text-gray-800 group-hover:text-primary transition-colors">六爻排盘</span>
             </Link>
-            <div className="flex items-center gap-6">
-              <Link
-                to="/"
-                className="hover:text-accent transition-colors font-semibold"
-              >
-                起卦
-              </Link>
-              <Link
-                to="/history"
-                className="hover:text-accent transition-colors font-semibold"
-              >
-                历史记录
-              </Link>
-              <Link
-                to="/tools"
-                className="hover:text-accent transition-colors font-semibold"
-              >
-                工具箱
-              </Link>
-              <Link
-                to="/settings/api-key"
-                className="hover:text-accent transition-colors font-semibold"
-              >
-                API Key设置
-              </Link>
+            <div className="flex items-center gap-8">
+              <div className="hidden md:flex items-center gap-6">
+                <Link to="/" className="text-gray-700 hover:text-primary font-medium transition-colors">起卦</Link>
+                <Link to="/history" className="text-gray-700 hover:text-primary font-medium transition-colors">历史记录</Link>
+                <Link to="/tools" className="text-gray-700 hover:text-primary font-medium transition-colors">工具箱</Link>
+                <Link to="/settings/api-key" className="text-gray-700 hover:text-primary font-medium transition-colors">设置</Link>
 
-              {/* 管理员菜单 */}
-              {isAdmin() && (
-                <Link
-                  to="/admin"
-                  className="hover:text-accent transition-colors font-semibold flex items-center gap-1"
-                >
-                  <span>⚙️</span> 管理后台
-                </Link>
-              )}
+                {/* 管理员菜单 */}
+                {isAdmin() && (
+                  <Link to="/admin" className="text-gray-700 hover:text-primary font-medium flex items-center gap-1">
+                    <span>⚙️</span> 后台
+                  </Link>
+                )}
+              </div>
 
               {/* 用户信息 */}
-              <div className="flex items-center gap-4 ml-4 border-l border-white/30 pl-4">
-                <span className="text-sm">
+              <div className="flex items-center gap-4 pl-6 border-l-2 border-gray-200">
+                <span className="text-sm font-medium text-gray-600">
                   {user?.realName || user?.username}
                 </span>
                 <button
                   onClick={logout}
-                  className="text-sm bg-white/20 hover:bg-white/30 px-3 py-1 rounded transition"
+                  className="text-sm bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 px-4 py-1.5 rounded-full transition-all duration-300 border border-gray-200 hover:border-red-200"
                 >
                   退出
                 </button>
@@ -79,16 +60,18 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       </nav>
 
       {/* 主内容区域 */}
-      <main>{children}</main>
+      <main className="flex-grow container mx-auto px-4 py-8 animate-fade-in">
+        {children}
+      </main>
 
       {/* 页脚 */}
-      <footer className="bg-gray-800 text-white py-6 mt-12">
+      <footer className="bg-white/80 backdrop-blur border-t border-gray-200 py-8 mt-auto">
         <div className="container mx-auto px-4 text-center">
-          <p className="text-sm">
-            六爻排盘系统 - 传统易经占卜与现代AI技术的结合
+          <p className="text-gray-600 font-serif">
+            六爻排盘系统 · 传统易经占卜与现代AI技术的完美融合
           </p>
           <p className="text-xs text-gray-400 mt-2">
-            仅供学习娱乐，不作为决策依据
+            © 2024 LiuYao Divination System. All rights reserved.
           </p>
         </div>
       </footer>

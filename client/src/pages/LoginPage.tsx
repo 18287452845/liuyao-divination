@@ -70,47 +70,54 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 via-amber-50 to-yellow-50">
-      <div className="w-full max-w-md p-8">
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      {/* 背景装饰 */}
+      <div className="absolute inset-0 z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-primary/5 blur-3xl animate-float" style={{ animationDelay: '0s' }}></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-secondary/5 blur-3xl animate-float" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute top-[20%] right-[20%] w-[30%] h-[30%] rounded-full bg-accent/5 blur-3xl animate-float" style={{ animationDelay: '4s' }}></div>
+      </div>
+
+      <div className="w-full max-w-md z-10">
         {/* Logo和标题 */}
-        <div className="text-center mb-8">
-          <div className="text-6xl mb-4">☯️</div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">六爻排盘系统</h1>
-          <p className="text-gray-600">传统智慧 · 现代科技</p>
+        <div className="text-center mb-8 animate-scale-in">
+          <div className="w-20 h-20 mx-auto bg-gradient-to-br from-primary to-red-700 text-white rounded-full flex items-center justify-center text-5xl shadow-xl mb-6 border-4 border-white/50">
+            ☯
+          </div>
+          <h1 className="text-4xl font-calligraphy text-gray-800 mb-2 text-shadow">六爻排盘系统</h1>
+          <p className="text-gray-600 font-serif tracking-widest">传统智慧 · 现代科技</p>
         </div>
 
         {/* 登录/注册表单 */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+        <div className="glass-card animate-fade-in">
           {/* 切换标签 */}
-          <div className="flex mb-6 bg-gray-100 rounded-lg p-1">
+          <div className="flex mb-8 bg-gray-100/50 p-1.5 rounded-xl">
             <button
               type="button"
               onClick={() => setIsLogin(true)}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-                isLogin
-                  ? 'bg-white text-red-700 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-bold transition-all duration-300 ${isLogin
+                  ? 'bg-white text-primary shadow-md scale-105'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+                }`}
             >
               登录
             </button>
             <button
               type="button"
               onClick={() => setIsLogin(false)}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-                !isLogin
-                  ? 'bg-white text-red-700 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-bold transition-all duration-300 ${!isLogin
+                  ? 'bg-white text-primary shadow-md scale-105'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+                }`}
             >
               注册
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {/* 用户名 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            <div className="space-y-1.5">
+              <label className="block text-sm font-bold text-gray-700 ml-1">
                 用户名
               </label>
               <input
@@ -119,14 +126,14 @@ const LoginPage: React.FC = () => {
                 value={formData.username}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition"
+                className="input-field"
                 placeholder="请输入用户名"
               />
             </div>
 
             {/* 密码 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            <div className="space-y-1.5">
+              <label className="block text-sm font-bold text-gray-700 ml-1">
                 密码
               </label>
               <input
@@ -135,16 +142,16 @@ const LoginPage: React.FC = () => {
                 value={formData.password}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition"
+                className="input-field"
                 placeholder="请输入密码"
               />
             </div>
 
             {/* 注册额外字段 */}
             {!isLogin && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+              <div className="space-y-5 animate-fade-in">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-bold text-gray-700 ml-1">
                     邀请码 <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -153,16 +160,16 @@ const LoginPage: React.FC = () => {
                     value={formData.inviteCode}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition"
+                    className="input-field"
                     placeholder="请输入邀请码"
                   />
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 ml-1">
                     注册需要邀请码，请联系管理员获取
                   </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-bold text-gray-700 ml-1">
                     邮箱（可选）
                   </label>
                   <input
@@ -170,13 +177,13 @@ const LoginPage: React.FC = () => {
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition"
+                    className="input-field"
                     placeholder="请输入邮箱"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-bold text-gray-700 ml-1">
                     真实姓名（可选）
                   </label>
                   <input
@@ -184,16 +191,16 @@ const LoginPage: React.FC = () => {
                     name="realName"
                     value={formData.realName}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition"
+                    className="input-field"
                     placeholder="请输入真实姓名"
                   />
                 </div>
-              </>
+              </div>
             )}
 
             {/* 错误提示 */}
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              <div className="bg-red-50/80 backdrop-blur border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm animate-fade-in">
                 {error}
               </div>
             )}
@@ -202,20 +209,26 @@ const LoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-red-600 to-red-700 text-white py-3 rounded-lg font-medium hover:from-red-700 hover:to-red-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+              className="w-full btn-primary mt-2"
             >
-              {loading ? '处理中...' : isLogin ? '登录' : '注册'}
+              {loading ? '处理中...' : isLogin ? '立即登录' : '立即注册'}
             </button>
           </form>
 
           {/* 测试账号提示 */}
           {isLogin && (
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="text-sm text-blue-800">
-                <div className="font-medium mb-2">测试账号：</div>
-                <div className="space-y-1">
-                  <div>管理员 - 用户名: <span className="font-mono">admin</span> / 密码: <span className="font-mono">admin123</span></div>
-                  <div>普通用户 - 用户名: <span className="font-mono">testuser</span> / 密码: <span className="font-mono">test123</span></div>
+            <div className="mt-8 p-4 bg-blue-50/50 border border-blue-100 rounded-xl text-sm text-blue-800/80">
+              <div className="font-bold mb-2 flex items-center gap-2">
+                <span className="text-lg">💡</span> 测试账号
+              </div>
+              <div className="space-y-1.5 font-mono text-xs bg-white/50 p-3 rounded-lg">
+                <div className="flex justify-between">
+                  <span>管理员:</span>
+                  <span className="text-blue-900">admin / admin123</span>
+                </div>
+                <div className="flex justify-between border-t border-blue-100 pt-1.5">
+                  <span>普通用户:</span>
+                  <span className="text-blue-900">testuser / test123</span>
                 </div>
               </div>
             </div>
@@ -223,7 +236,7 @@ const LoginPage: React.FC = () => {
         </div>
 
         {/* 底部版权 */}
-        <div className="text-center mt-8 text-sm text-gray-600">
+        <div className="text-center mt-8 text-sm text-gray-500 font-serif">
           <p>© 2024 六爻排盘系统 · 传统文化数字化平台</p>
         </div>
       </div>
