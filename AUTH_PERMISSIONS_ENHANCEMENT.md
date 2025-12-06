@@ -78,6 +78,10 @@
 server/
 ├── sql/
 │   └── 02_auth_permissions_migration.sql  # 数据库迁移脚本
+├── migrate-database.ps1               # PowerShell迁移脚本
+├── migrate-database.bat                # Windows批处理迁移脚本
+├── verify-migration.sh                 # 迁移验证脚本
+├── test-migration.js                   # 迁移脚本测试工具
 ├── src/
 │   ├── controllers/
 │   │   ├── inviteController.ts           # 邀请码管理控制器
@@ -90,10 +94,11 @@ server/
 │   │   ├── audit.ts                    # 审计日志工具
 │   │   ├── tokenBlacklist.ts           # Token黑名单工具
 │   │   ├── inviteCodes.ts              # 邀请码管理工具
-│   │   └── passwordPolicy.ts          # 密码策略工具
+│   │   ├── passwordPolicy.ts          # 密码策略工具
+│   │   └── jwt.ts                     # 增强的JWT工具
 │   └── routes/
 │       └── index.ts                    # 更新的路由配置
-└── test-migration.js                  # 迁移脚本测试工具
+└── test-api.js                      # API功能测试
 ```
 
 ### 前端文件
@@ -104,6 +109,13 @@ client/
     │   └── PermissionGuard.tsx         # 权限控制组件
     └── contexts/
         └── AuthContext.tsx            # 增强的认证上下文
+```
+
+### 文档文件
+```
+├── AUTH_PERMISSIONS_ENHANCEMENT.md    # 功能完善报告
+├── USAGE_GUIDE.md                    # 使用指南
+└── MIGRATION_GUIDE.md               # 数据库迁移指南
 ```
 
 ## 🚀 使用指南

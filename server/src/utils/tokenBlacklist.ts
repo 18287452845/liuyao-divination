@@ -200,15 +200,16 @@ export async function manualBlacklistToken(
     );
 
     // 记录管理员操作日志
-    const { logAudit } = await import('./audit');
-    await logAudit({
+    const { logSuccess } = await import('./audit');
+    await logSuccess({
       userId: adminUserId,
-      action: 'MANUAL_BLACKLIST_TOKEN',
+      username: 'admin', // 手动操作时使用admin用户名
+      action: 'MANUAL_BLACKLIST_TOKEN' as any,
       resourceType: 'token',
       resourceId: tokenJti,
       details: { reason },
       ipAddress: '127.0.0.1', // 实际应用中应该从请求中获取
-      status: 1
+      userAgent: 'system' // 系统操作
     });
 
     console.log(`管理员手动将Token加入黑名单: ${tokenJti}, 原因: ${reason}`);

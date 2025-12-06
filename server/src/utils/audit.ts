@@ -42,12 +42,15 @@ export enum AuditAction {
   CREATE_INVITE = 'CREATE_INVITE',
   UPDATE_INVITE = 'UPDATE_INVITE',
   DELETE_INVITE = 'DELETE_INVITE',
+  
+  // 审计管理
+  AUDIT_CLEANUP = 'AUDIT_CLEANUP',
 }
 
 export interface AuditLogData {
   userId?: string;
   username?: string;
-  action: AuditAction;
+  action: string; // 改为string类型以支持自定义action
   resourceType?: string;
   resourceId?: string;
   details?: any;

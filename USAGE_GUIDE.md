@@ -4,17 +4,43 @@
 
 ### 1. 数据库迁移
 
-首先运行数据库迁移脚本以添加新的表和功能：
+#### 方法一：PowerShell (推荐)
+```powershell
+# 进入server目录
+cd server
 
+# 执行迁移
+.\migrate-database.ps1
+```
+
+#### 方法二：Windows批处理
+```cmd
+# 进入server目录
+cd server
+
+# 执行迁移
+migrate-database.bat
+```
+
+#### 方法三：手动MySQL命令
 ```bash
 # 进入server目录
 cd server
 
 # 执行迁移（MySQL）
 mysql -u root -p123456 < sql/02_auth_permissions_migration.sql
+```
 
-# 或者验证迁移脚本
+#### 方法四：验证迁移脚本
+```bash
+cd server
 node test-migration.js
+```
+
+#### 方法五：Linux/macOS验证
+```bash
+cd server
+./verify-migration.sh
 ```
 
 ### 2. 启动服务

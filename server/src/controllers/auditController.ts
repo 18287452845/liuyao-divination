@@ -4,8 +4,21 @@
  */
 
 import { Request, Response } from 'express';
-import { getAuditLogs, exportAuditLogs, cleanupAuditLogs } from '../utils/audit';
-import { logSuccess, logFailure, AuditAction } from '../utils/audit';
+import { getAuditLogs, exportAuditLogs, cleanupAuditLogs, logSuccess, logFailure, AuditAction } from '../utils/audit';
+
+// 扩展Request接口以包含user属性
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        userId: string;
+        username: string;
+        roles: string[];
+        permissions: string[];
+      };
+    }
+  }
+}
 
 /**
  * 获取审计日志列表
