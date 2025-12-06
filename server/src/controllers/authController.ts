@@ -7,7 +7,9 @@ import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne } from '../models/database';
 import { hashPassword, verifyPassword } from '../utils/password';
-import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
+import { generateAccessToken, generateRefreshToken, verifyToken, extractTokenFromHeader } from '../utils/jwt';
+import { recordLoginLog } from './logController';
+import { resetLoginAttempts, blacklistToken } from '../middleware/enhancedAuth';
 
 /**
  * 用户登录
@@ -52,6 +54,16 @@ export async function login(req: Request, res: Response): Promise<void> {
     const isPasswordValid = await verifyPassword(password, user.password);
 
     if (!isPasswordValid) {
+      // 记录登录失败
+      await recordLoginLog(
+        user.id,
+        username,
+        loginIp,
+        req.get('User-Agent') || '',
+        0,
+        '密码错误'
+      );
+
       res.status(401).json({
         success: false,
         message: '用户名或密码错误',
@@ -83,11 +95,23 @@ export async function login(req: Request, res: Response): Promise<void> {
       roles: roleCodes,
     });
 
-    // 更新最后登录时间和IP
+    // 更新最后登录时间和IP，并重置登录失败次数
     const loginIp = req.ip || req.connection.remoteAddress || '';
     await query(
       'UPDATE users SET last_login_at = NOW(), last_login_ip = ? WHERE id = ?',
       [loginIp, user.id]
+    );
+
+    // 重置登录失败次数
+    await resetLoginAttempts(user.id);
+
+    // 记录登录成功
+    await recordLoginLog(
+      user.id,
+      username,
+      loginIp,
+      req.get('User-Agent') || '',
+      1
     );
 
     res.json({
@@ -494,12 +518,38 @@ export async function refreshToken(req: Request, res: Response): Promise<void> {
 }
 
 /**
- * 登出（客户端处理，服务端可选实现token黑名单）
+ * 登出（将token加入黑名单）
  */
 export async function logout(req: Request, res: Response): Promise<void> {
   try {
-    // 当前简化实现，仅返回成功
-    // 实际生产环境可以将token加入黑名单（Redis）
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        message: '未登录',
+      });
+      return;
+    }
+
+    const token = extractTokenFromHeader(req.headers.authorization);
+    
+    if (token) {
+      // 将token加入黑名单
+      const payload = verifyToken(token);
+      if (payload.valid && payload.payload) {
+        // 设置token过期时间为当前时间加1小时（确保立即失效）
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 1);
+
+        await blacklistToken(
+          token,
+          payload.payload.userId,
+          'access',
+          expiresAt,
+          '用户主动登出'
+        );
+      }
+    }
+
     res.json({
       success: true,
       message: '登出成功',

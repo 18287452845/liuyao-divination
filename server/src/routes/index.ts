@@ -58,6 +58,40 @@ import {
   deleteApiKey,
   testApiKey
 } from '../controllers/apiKeyController';
+import {
+  getLoginLogs,
+  getOperationLogs,
+  deleteLoginLogs,
+  deleteOperationLogs,
+  exportLoginLogs,
+  exportOperationLogs
+} from '../controllers/logController';
+import {
+  getUserSessions,
+  getAllActiveSessions,
+  invalidateSession,
+  invalidateOtherSessions,
+  invalidateAllUserSessions,
+  getSessionStatistics
+} from '../controllers/sessionController';
+import {
+  getSecuritySettings,
+  enableTwoFactor,
+  disableTwoFactor,
+  lockUserAccount,
+  unlockUserAccount,
+  forcePasswordReset,
+  getSecurityAuditReport
+} from '../controllers/securityController';
+import {
+  sendEmailVerification,
+  verifyEmail,
+  sendPasswordReset,
+  resetPassword,
+  sendEmailChangeVerification,
+  confirmEmailChange,
+  batchSendEmailVerification
+} from '../controllers/emailController';
 import { authenticate, requirePermissions, requireRoles } from '../middleware/auth';
 
 const router = express.Router();
@@ -131,5 +165,39 @@ router.patch('/roles/:id/status', authenticate, requirePermissions('role:edit'),
 // 权限管理路由
 router.get('/permissions', authenticate, requirePermissions('permission:view'), getPermissions);
 router.post('/roles/:id/permissions', authenticate, requirePermissions('role:assignPermission'), assignPermissions);
+
+// ==================== 日志管理路由 ====================
+router.get('/logs/login', authenticate, requirePermissions('log:viewLogin'), getLoginLogs);
+router.get('/logs/operation', authenticate, requirePermissions('log:viewOperation'), getOperationLogs);
+router.delete('/logs/login', authenticate, requirePermissions('log:delete'), deleteLoginLogs);
+router.delete('/logs/operation', authenticate, requirePermissions('log:delete'), deleteOperationLogs);
+router.get('/logs/login/export', authenticate, requirePermissions('log:export'), exportLoginLogs);
+router.get('/logs/operation/export', authenticate, requirePermissions('log:export'), exportOperationLogs);
+
+// ==================== 会话管理路由 ====================
+router.get('/sessions', authenticate, requirePermissions('session:view'), getAllActiveSessions);
+router.get('/sessions/user/:userId', authenticate, requirePermissions('session:view'), getUserSessions);
+router.delete('/sessions/:sessionId', authenticate, requirePermissions('session:manage'), invalidateSession);
+router.post('/sessions/invalidate-others', authenticate, invalidateOtherSessions);
+router.delete('/sessions/user/:userId/all', authenticate, requirePermissions('session:manage'), invalidateAllUserSessions);
+router.get('/sessions/statistics', authenticate, requirePermissions('session:view'), getSessionStatistics);
+
+// ==================== 安全管理路由 ====================
+router.get('/security/settings', authenticate, requirePermissions('security:view'), getSecuritySettings);
+router.post('/security/2fa/enable', authenticate, enableTwoFactor);
+router.post('/security/2fa/disable', authenticate, disableTwoFactor);
+router.post('/security/lock/:userId', authenticate, requirePermissions('security:lockUnlock'), lockUserAccount);
+router.post('/security/unlock/:userId', authenticate, requirePermissions('security:lockUnlock'), unlockUserAccount);
+router.post('/security/force-reset-password/:userId', authenticate, requirePermissions('security:forcePasswordReset'), forcePasswordReset);
+router.get('/security/audit-report', authenticate, requirePermissions('security:auditReport'), getSecurityAuditReport);
+
+// ==================== 邮箱验证路由 ====================
+router.post('/email/send-verification', authenticate, sendEmailVerification);
+router.post('/email/verify', authenticate, verifyEmail);
+router.post('/email/send-reset', sendPasswordReset);
+router.post('/email/reset-password', resetPassword);
+router.post('/email/send-change-verification', authenticate, sendEmailChangeVerification);
+router.post('/email/confirm-change', authenticate, confirmEmailChange);
+router.post('/email/batch-send-verification', authenticate, requirePermissions('email:batchVerify'), batchSendEmailVerification);
 
 export default router;
