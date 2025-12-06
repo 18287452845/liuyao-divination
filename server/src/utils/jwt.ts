@@ -4,6 +4,7 @@
  */
 
 import jwt from 'jsonwebtoken';
+import { v4 as uuidv4 } from 'uuid';
 
 // JWT配置
 const JWT_SECRET = process.env.JWT_SECRET || 'liuyao-secret-key-change-in-production';
@@ -17,6 +18,9 @@ export interface TokenPayload {
   userId: string;
   username: string;
   roles?: string[];
+  jti?: string; // JWT ID，用于黑名单
+  iat?: number; // 签发时间
+  exp?: number; // 过期时间
 }
 
 /**
@@ -35,6 +39,7 @@ export interface VerifyResult {
  */
 export function generateAccessToken(payload: TokenPayload): string {
   return jwt.sign(payload, JWT_SECRET, {
+    jti: uuidv4(),
     expiresIn: JWT_EXPIRES_IN as string,
     issuer: 'liuyao-system',
     audience: 'liuyao-client',
@@ -48,6 +53,7 @@ export function generateAccessToken(payload: TokenPayload): string {
  */
 export function generateRefreshToken(payload: TokenPayload): string {
   return jwt.sign(payload, JWT_SECRET, {
+    jti: uuidv4(),
     expiresIn: JWT_REFRESH_EXPIRES_IN as string,
     issuer: 'liuyao-system',
     audience: 'liuyao-client',

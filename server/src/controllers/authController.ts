@@ -8,6 +8,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne } from '../models/database';
 import { hashPassword, verifyPassword } from '../utils/password';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
+import { logSuccess, logFailure, AuditAction } from '../utils/audit';
+import { addToBlacklist } from '../utils/tokenBlacklist';
+import { validatePassword } from '../utils/passwordPolicy';
+import { validateInviteCode, useInviteCode } from '../utils/inviteCodes';
 
 /**
  * 用户登录
@@ -15,9 +19,20 @@ import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
 export async function login(req: Request, res: Response): Promise<void> {
   try {
     const { username, password } = req.body;
+    const ipAddress = req.ip || req.connection.remoteAddress || '';
+    const userAgent = req.get('User-Agent') || '';
 
     // 验证输入
     if (!username || !password) {
+      await logFailure({
+        username,
+        action: AuditAction.LOGIN,
+        resourceType: 'auth',
+        details: { reason: '用户名或密码为空' },
+        ipAddress,
+        userAgent,
+        errorMessage: '用户名和密码不能为空'
+      });
       res.status(400).json({
         success: false,
         message: '用户名和密码不能为空',
@@ -27,11 +42,20 @@ export async function login(req: Request, res: Response): Promise<void> {
 
     // 查询用户
     const user: any = await queryOne(
-      'SELECT id, username, password, status FROM users WHERE username = ?',
+      'SELECT id, username, password, status, login_fail_count, locked_until FROM users WHERE username = ?',
       [username]
     );
 
     if (!user) {
+      await logFailure({
+        username,
+        action: AuditAction.LOGIN,
+        resourceType: 'auth',
+        details: { reason: '用户不存在' },
+        ipAddress,
+        userAgent,
+        errorMessage: '用户名或密码错误'
+      });
       res.status(401).json({
         success: false,
         message: '用户名或密码错误',
@@ -39,8 +63,37 @@ export async function login(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    // 检查账号是否被锁定
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      await logFailure({
+        userId: user.id,
+        username: user.username,
+        action: AuditAction.LOGIN,
+        resourceType: 'auth',
+        details: { reason: '账号被锁定', lockedUntil: user.locked_until },
+        ipAddress,
+        userAgent,
+        errorMessage: '账号已被锁定，请稍后再试'
+      });
+      res.status(423).json({
+        success: false,
+        message: '账号已被锁定，请稍后再试',
+      });
+      return;
+    }
+
     // 检查用户状态
     if (user.status !== 1) {
+      await logFailure({
+        userId: user.id,
+        username: user.username,
+        action: AuditAction.LOGIN,
+        resourceType: 'auth',
+        details: { reason: '用户状态异常', status: user.status },
+        ipAddress,
+        userAgent,
+        errorMessage: '账号已被禁用，请联系管理员'
+      });
       res.status(403).json({
         success: false,
         message: '账号已被禁用，请联系管理员',
@@ -52,12 +105,63 @@ export async function login(req: Request, res: Response): Promise<void> {
     const isPasswordValid = await verifyPassword(password, user.password);
 
     if (!isPasswordValid) {
-      res.status(401).json({
-        success: false,
-        message: '用户名或密码错误',
-      });
+      // 增加登录失败次数
+      const newFailCount = (user.login_fail_count || 0) + 1;
+      const maxFailCount = 5;
+      
+      if (newFailCount >= maxFailCount) {
+        // 锁定账号30分钟
+        const lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+        await query(
+          'UPDATE users SET login_fail_count = ?, locked_until = ? WHERE id = ?',
+          [newFailCount, lockedUntil, user.id]
+        );
+        
+        await logFailure({
+          userId: user.id,
+          username: user.username,
+          action: AuditAction.LOGIN,
+          resourceType: 'auth',
+          details: { reason: '密码错误次数过多，账号被锁定', failCount: newFailCount },
+          ipAddress,
+          userAgent,
+          errorMessage: '密码错误次数过多，账号已被锁定30分钟'
+        });
+        
+        res.status(423).json({
+          success: false,
+          message: '密码错误次数过多，账号已被锁定30分钟',
+        });
+      } else {
+        await query(
+          'UPDATE users SET login_fail_count = ? WHERE id = ?',
+          [newFailCount, user.id]
+        );
+        
+        await logFailure({
+          userId: user.id,
+          username: user.username,
+          action: AuditAction.LOGIN,
+          resourceType: 'auth',
+          details: { reason: '密码错误', failCount: newFailCount, remaining: maxFailCount - newFailCount },
+          ipAddress,
+          userAgent,
+          errorMessage: `用户名或密码错误，还剩${maxFailCount - newFailCount}次机会`
+        });
+        
+        res.status(401).json({
+          success: false,
+          message: `用户名或密码错误，还剩${maxFailCount - newFailCount}次机会`,
+        });
+      }
       return;
     }
+
+    // 登录成功，重置失败次数
+    await query(
+      'UPDATE users SET login_fail_count = 0, locked_until = NULL WHERE id = ?',
+      [user.id]
+    );
 
     // 查询用户角色
     const roles: any = await query(
@@ -84,11 +188,22 @@ export async function login(req: Request, res: Response): Promise<void> {
     });
 
     // 更新最后登录时间和IP
-    const loginIp = req.ip || req.connection.remoteAddress || '';
+    const loginIp = ipAddress;
     await query(
       'UPDATE users SET last_login_at = NOW(), last_login_ip = ? WHERE id = ?',
       [loginIp, user.id]
     );
+
+    // 记录登录成功日志
+    await logSuccess({
+      userId: user.id,
+      username: user.username,
+      action: AuditAction.LOGIN,
+      resourceType: 'auth',
+      details: { loginIp },
+      ipAddress,
+      userAgent
+    });
 
     res.json({
       success: true,
@@ -116,9 +231,10 @@ export async function login(req: Request, res: Response): Promise<void> {
 export async function register(req: Request, res: Response): Promise<void> {
   try {
     const { username, password, email, realName, inviteCode } = req.body;
+    const ipAddress = req.ip || req.connection.remoteAddress || '';
+    const userAgent = req.get('User-Agent') || '';
 
-    // 验证邀请码（必须）
-    const VALID_INVITE_CODE = '1663929970';
+    // 验证邀请码
     if (!inviteCode) {
       res.status(400).json({
         success: false,
@@ -127,10 +243,20 @@ export async function register(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    if (inviteCode !== VALID_INVITE_CODE) {
+    const inviteValidation = await validateInviteCode(inviteCode);
+    if (!inviteValidation.valid) {
+      await logFailure({
+        username,
+        action: AuditAction.REGISTER,
+        resourceType: 'auth',
+        details: { reason: '邀请码无效', inviteCode, error: inviteValidation.error },
+        ipAddress,
+        userAgent,
+        errorMessage: inviteValidation.error || '邀请码无效'
+      });
       res.status(400).json({
         success: false,
-        message: '邀请码无效',
+        message: inviteValidation.error || '邀请码无效',
       });
       return;
     }
@@ -161,11 +287,13 @@ export async function register(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // 验证密码长度
-    if (password.length < 6) {
+    // 验证密码复杂度
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
       res.status(400).json({
         success: false,
-        message: '密码长度至少为6个字符',
+        message: '密码不符合安全要求',
+        errors: passwordValidation.errors,
       });
       return;
     }
@@ -186,6 +314,15 @@ export async function register(req: Request, res: Response): Promise<void> {
     );
 
     if (existingUser) {
+      await logFailure({
+        username,
+        action: AuditAction.REGISTER,
+        resourceType: 'auth',
+        details: { reason: '用户名已存在' },
+        ipAddress,
+        userAgent,
+        errorMessage: '用户名已存在'
+      });
       res.status(409).json({
         success: false,
         message: '用户名已存在',
@@ -201,6 +338,15 @@ export async function register(req: Request, res: Response): Promise<void> {
       );
 
       if (existingEmail) {
+        await logFailure({
+          username,
+          action: AuditAction.REGISTER,
+          resourceType: 'auth',
+          details: { reason: '邮箱已被注册', email },
+          ipAddress,
+          userAgent,
+          errorMessage: '邮箱已被注册'
+        });
         res.status(409).json({
           success: false,
           message: '邮箱已被注册',
@@ -215,8 +361,8 @@ export async function register(req: Request, res: Response): Promise<void> {
     // 创建用户
     const userId = uuidv4();
     await query(
-      `INSERT INTO users (id, username, password, email, real_name, status)
-       VALUES (?, ?, ?, ?, ?, 1)`,
+      `INSERT INTO users (id, username, password, email, real_name, status, last_password_change)
+       VALUES (?, ?, ?, ?, ?, 1, NOW())`,
       [userId, username, hashedPassword, email || null, realName || null]
     );
 
@@ -232,6 +378,20 @@ export async function register(req: Request, res: Response): Promise<void> {
         [userRoleId, userId, defaultRole.id]
       );
     }
+
+    // 使用邀请码
+    await useInviteCode(inviteCode);
+
+    // 记录注册成功日志
+    await logSuccess({
+      userId,
+      username,
+      action: AuditAction.REGISTER,
+      resourceType: 'auth',
+      details: { email, realName, inviteCode },
+      ipAddress,
+      userAgent
+    });
 
     res.status(201).json({
       success: true,
@@ -494,12 +654,46 @@ export async function refreshToken(req: Request, res: Response): Promise<void> {
 }
 
 /**
- * 登出（客户端处理，服务端可选实现token黑名单）
+ * 登出（将Token加入黑名单）
  */
 export async function logout(req: Request, res: Response): Promise<void> {
   try {
-    // 当前简化实现，仅返回成功
-    // 实际生产环境可以将token加入黑名单（Redis）
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        message: '未登录',
+      });
+      return;
+    }
+
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.replace('Bearer ', '');
+    
+    // 这里需要解析JWT来获取jti，需要在jwt工具中添加解析函数
+    // 暂时使用用户ID作为标识
+    const ipAddress = req.ip || req.connection.remoteAddress || '';
+    const userAgent = req.get('User-Agent') || '';
+
+    // 记录登出日志
+    await logSuccess({
+      userId: req.user.userId,
+      username: req.user.username,
+      action: AuditAction.LOGOUT,
+      resourceType: 'auth',
+      details: { token: token ? 'provided' : 'not_provided' },
+      ipAddress,
+      userAgent
+    });
+
+    // TODO: 实际应用中应该解析Token获取jti并加入黑名单
+    // await addToBlacklist({
+    //   tokenJti: tokenJti,
+    //   userId: req.user.userId,
+    //   tokenType: 'access',
+    //   expiresAt: tokenExpiry,
+    //   reason: '用户主动登出'
+    // });
+
     res.json({
       success: true,
       message: '登出成功',

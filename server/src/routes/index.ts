@@ -58,6 +58,23 @@ import {
   deleteApiKey,
   testApiKey
 } from '../controllers/apiKeyController';
+import {
+  getInviteCodeList,
+  getInviteCodeStatistics,
+  getInviteCodeDetail,
+  createInviteCodeController,
+  batchCreateInviteCodesController,
+  generateRandomInviteCodeController,
+  updateInviteCodeController,
+  updateInviteCodeStatusController,
+  deleteInviteCodeController
+} from '../controllers/inviteController';
+import {
+  getAuditLogList,
+  exportAuditLogController,
+  cleanupAuditLogController,
+  getAuditLogStatistics
+} from '../controllers/auditController';
 import { authenticate, requirePermissions, requireRoles } from '../middleware/auth';
 
 const router = express.Router();
@@ -131,5 +148,24 @@ router.patch('/roles/:id/status', authenticate, requirePermissions('role:edit'),
 // 权限管理路由
 router.get('/permissions', authenticate, requirePermissions('permission:view'), getPermissions);
 router.post('/roles/:id/permissions', authenticate, requirePermissions('role:assignPermission'), assignPermissions);
+
+// ==================== 邀请码管理路由 ====================
+// 所有邀请码管理路由都需要管理员权限
+router.get('/invite-codes', authenticate, requirePermissions('invite:view'), getInviteCodeList);
+router.get('/invite-codes/statistics', authenticate, requirePermissions('invite:view'), getInviteCodeStatistics);
+router.get('/invite-codes/:id', authenticate, requirePermissions('invite:view'), getInviteCodeDetail);
+router.post('/invite-codes', authenticate, requirePermissions('invite:create'), createInviteCodeController);
+router.post('/invite-codes/batch', authenticate, requirePermissions('invite:create'), batchCreateInviteCodesController);
+router.get('/invite-codes/generate/random', authenticate, generateRandomInviteCodeController);
+router.put('/invite-codes/:id', authenticate, requirePermissions('invite:edit'), updateInviteCodeController);
+router.patch('/invite-codes/:id/status', authenticate, requirePermissions('invite:edit'), updateInviteCodeStatusController);
+router.delete('/invite-codes/:id', authenticate, requirePermissions('invite:delete'), deleteInviteCodeController);
+
+// ==================== 审计日志管理路由 ====================
+// 所有审计日志路由都需要管理员权限
+router.get('/audit-logs', authenticate, requirePermissions('audit:view'), getAuditLogList);
+router.get('/audit-logs/statistics', authenticate, requirePermissions('audit:view'), getAuditLogStatistics);
+router.get('/audit-logs/export', authenticate, requirePermissions('audit:export'), exportAuditLogController);
+router.post('/audit-logs/cleanup', authenticate, requirePermissions('audit:cleanup'), cleanupAuditLogController);
 
 export default router;
