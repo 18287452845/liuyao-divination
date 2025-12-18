@@ -68,10 +68,13 @@ export async function validateInviteCode(code: string): Promise<{
   error?: string;
 }> {
   try {
+    // 统一转换为大写并去除空格
+    const normalizedCode = code.trim().toUpperCase();
+    
     const inviteCode: any = await queryOne(
       `SELECT * FROM invite_codes 
        WHERE code = ? AND status = 1`,
-      [code]
+      [normalizedCode]
     );
 
     if (!inviteCode) {
@@ -100,11 +103,12 @@ export async function validateInviteCode(code: string): Promise<{
  */
 export async function useInviteCode(code: string): Promise<boolean> {
   try {
+    const normalizedCode = code.trim().toUpperCase();
     const result: any = await query(
       `UPDATE invite_codes 
        SET used_count = used_count + 1
        WHERE code = ? AND status = 1 AND used_count < max_uses`,
-      [code]
+      [normalizedCode]
     );
 
     return result.affectedRows > 0;

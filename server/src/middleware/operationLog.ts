@@ -23,7 +23,7 @@ export function logOperation(
 
     // 重写res.end以记录响应
     const originalEnd = res.end;
-    res.end = function(chunk?: any, encoding?: any) {
+    res.end = function(chunk?: any, encoding?: any): any {
       // 计算执行时间
       const executionTime = Date.now() - startTime;
 
@@ -50,6 +50,7 @@ export function logOperation(
 
       // 调用原始的end方法
       originalEnd.call(this, chunk, encoding);
+      return res;
     };
 
     next();
@@ -65,7 +66,7 @@ export function logSensitiveOperation(req: Request, res: Response, next: NextFun
 
   // 重写res.end以记录响应
   const originalEnd = res.end;
-  res.end = function(chunk?: any, encoding?: any) {
+  res.end = function(chunk?: any, encoding?: any): any {
     const executionTime = Date.now() - startTime;
 
     // 异步记录日志
@@ -157,6 +158,7 @@ export function logSensitiveOperation(req: Request, res: Response, next: NextFun
     });
 
     originalEnd.call(this, chunk, encoding);
+    return res;
   };
 
   next();
