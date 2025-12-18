@@ -76,8 +76,8 @@ export async function getLoginLogs(req: Request, res: Response): Promise<void> {
        LEFT JOIN users u ON l.user_id = u.id
        ${whereClause}
        ORDER BY l.login_time DESC
-       LIMIT ? OFFSET ?`,
-      [...params, Number(pageSize), offset]
+               LIMIT ? OFFSET ?`,
+             [...params, Number(pageSize), Number(offset)]
     );
 
     res.json({
@@ -169,8 +169,8 @@ export async function getOperationLogs(req: Request, res: Response): Promise<voi
        LEFT JOIN users u ON l.user_id = u.id
        ${whereClause}
        ORDER BY l.operation_time DESC
-       LIMIT ? OFFSET ?`,
-      [...params, Number(pageSize), offset]
+               LIMIT ? OFFSET ?`,
+             [...params, Number(pageSize), Number(offset)]
     );
 
     res.json({

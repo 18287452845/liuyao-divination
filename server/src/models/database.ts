@@ -16,8 +16,6 @@ const dbConfig = {
   connectionLimit: 10,
   queueLimit: 0,
   connectTimeout: 60000,  // 60秒连接超时
-  acquireTimeout: 60000,   // 60秒获取连接超时
-  timeout: 60000,          // 60秒查询超时
   enableKeepAlive: true,
   keepAliveInitialDelay: 0
 };
@@ -203,7 +201,8 @@ export class DivinationRecordModel {
     }
 
     sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    params.push(limit, offset);
+    // 确保LIMIT和OFFSET是数字类型
+    params.push(Number(limit), Number(offset));
 
     return await query(sql, params);
   }
@@ -339,7 +338,8 @@ export class DivinationRecordModel {
     }
 
     sql += ' ORDER BY verify_time DESC LIMIT ? OFFSET ?';
-    params.push(limit, offset);
+    // 确保LIMIT和OFFSET是数字类型
+    params.push(Number(limit), Number(offset));
 
     return await query(sql, params);
   }
@@ -358,7 +358,8 @@ export class DivinationRecordModel {
     }
 
     sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    params.push(limit, offset);
+    // 确保LIMIT和OFFSET是数字类型
+    params.push(Number(limit), Number(offset));
 
     return await query(sql, params);
   }

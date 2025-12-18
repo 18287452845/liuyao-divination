@@ -159,7 +159,7 @@ export async function getBlacklistEntries(filters: {
       `SELECT * FROM token_blacklist ${whereClause}
        ORDER BY created_at DESC
        LIMIT ? OFFSET ?`,
-      [...params, pageSize, offset]
+      [...params, Number(pageSize), Number(offset)]
     );
 
     return { entries, total };

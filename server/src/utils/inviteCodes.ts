@@ -171,7 +171,7 @@ export async function getInviteCodes(filters: {
       `SELECT * FROM invite_codes ${whereClause}
        ORDER BY created_at DESC
        LIMIT ? OFFSET ?`,
-      [...params, pageSize, offset]
+      [...params, Number(pageSize), Number(offset)]
     );
 
     return { codes, total };

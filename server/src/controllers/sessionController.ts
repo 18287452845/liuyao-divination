@@ -31,7 +31,7 @@ export async function getUserSessions(req: Request, res: Response): Promise<void
        WHERE s.user_id = ? AND s.is_active = 1
        ORDER BY s.last_activity DESC
        LIMIT ? OFFSET ?`,
-      [userId, Number(pageSize), offset]
+      [userId, Number(pageSize), Number(offset)]
     );
 
     res.json({

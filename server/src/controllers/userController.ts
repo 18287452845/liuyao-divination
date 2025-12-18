@@ -53,7 +53,7 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
        GROUP BY u.id
        ORDER BY u.created_at DESC
        LIMIT ? OFFSET ?`,
-      [...params, Number(pageSize), offset]
+      [...params, Number(pageSize), Number(offset)]
     );
 
     // 处理角色数据
