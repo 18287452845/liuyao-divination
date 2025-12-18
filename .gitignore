@@ -39,9 +39,6 @@ Thumbs.db
 *.njsproj
 *.sln
 
-# Docker
-.dockerignore
-
 # Temporary files
 tmp/
 temp/
