@@ -45,10 +45,66 @@ export async function testConnection() {
 // 数据库查询辅助函数
 export async function query(sql: string, params?: any[]) {
   try {
+    // 自动修复LIMIT/OFFSET参数类型问题
+    if (params && params.length > 0 && sql.includes('LIMIT') && sql.includes('OFFSET')) {
+      // 确保最后两个参数（通常是LIMIT和OFFSET）是数字类型
+      const limitIndex = params.length - 2;
+      const offsetIndex = params.length - 1;
+      
+      if (limitIndex >= 0 && params[limitIndex] !== null && params[limitIndex] !== undefined) {
+        const originalLimit = params[limitIndex];
+        params[limitIndex] = Number(params[limitIndex]);
+        if (originalLimit !== params[limitIndex] && typeof originalLimit !== 'number') {
+          console.warn(`自动修复: LIMIT参数从 ${typeof originalLimit} 类型转换为 number 类型`);
+        }
+      }
+      
+      if (offsetIndex >= 0 && params[offsetIndex] !== null && params[offsetIndex] !== undefined) {
+        const originalOffset = params[offsetIndex];
+        params[offsetIndex] = Number(params[offsetIndex]);
+        if (originalOffset !== params[offsetIndex] && typeof originalOffset !== 'number') {
+          console.warn(`自动修复: OFFSET参数从 ${typeof originalOffset} 类型转换为 number 类型`);
+        }
+      }
+    }
+    
     const [results] = await pool.execute(sql, params);
     return results;
   } catch (err) {
     console.error('数据库查询错误:', err);
+    
+    // 尝试自动诊断和修复错误
+    try {
+      const { diagnosisAndRepair } = await import('../utils/dbAutoRepair');
+      const repairResult = await diagnosisAndRepair(err as any, sql, params);
+      
+      console.log('\n=== 自动修复结果 ===');
+      console.log('状态:', repairResult.success ? '成功' : '失败');
+      console.log('信息:', repairResult.message);
+      if (repairResult.action) {
+        console.log('操作:', repairResult.action);
+      }
+      if (repairResult.sqlExecuted) {
+        console.log('执行的SQL:\n', repairResult.sqlExecuted);
+      }
+      console.log('==================\n');
+      
+      // 如果修复成功且是表结构问题，可以尝试重新执行
+      if (repairResult.success && repairResult.action === 'TABLE_CREATED') {
+        console.log('>>> 表已创建，重新尝试执行查询...');
+        const [results] = await pool.execute(sql, params);
+        return results;
+      }
+      
+      if (repairResult.success && repairResult.action === 'COLUMN_ADDED') {
+        console.log('>>> 字段已添加，重新尝试执行查询...');
+        const [results] = await pool.execute(sql, params);
+        return results;
+      }
+    } catch (repairErr) {
+      console.error('自动修复过程失败:', repairErr);
+    }
+    
     throw err;
   }
 }
