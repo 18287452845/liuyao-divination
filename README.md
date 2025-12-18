@@ -162,6 +162,7 @@ npm run dev
 #### 生产模式
 
 详细部署文档请查看：
+- **Docker部署指南**: [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md) - **推荐用于生产环境**
 - **快速部署**: [QUICK_DEPLOY.md](./QUICK_DEPLOY.md)
 - **完整部署指南**: [doc/DEPLOYMENT.md](./doc/DEPLOYMENT.md)
 - **部署检查清单**: [doc/DEPLOYMENT_CHECKLIST.md](./doc/DEPLOYMENT_CHECKLIST.md)
@@ -176,14 +177,19 @@ chmod +x deploy.sh
 deploy.bat
 ```
 
-**Docker部署**:
+**Docker部署（推荐）**:
 ```bash
-# 配置环境变量
+# 1. 配置环境变量
 cp .env.example .env
-nano .env
+nano .env  # 修改JWT_SECRET、MYSQL密码、DEEPSEEK_API_KEY
 
-# 启动服务
+# 2. 启动所有服务
 docker-compose up -d
+
+# 3. 查看日志
+docker-compose logs -f
+
+# 访问: http://localhost (前端) 和 http://localhost:5000 (后端API)
 ```
 
 ## 使用说明

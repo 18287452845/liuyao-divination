@@ -441,6 +441,12 @@ export async function getCurrentUser(req: Request, res: Response): Promise<void>
       [user.id]
     );
 
+    // 格式化角色数据，保持与登录时的格式一致
+    const formattedRoles = roles.map((r: any) => ({
+      code: r.role_code,
+      name: r.role_name,
+    }));
+
     res.json({
       success: true,
       data: {
@@ -452,7 +458,7 @@ export async function getCurrentUser(req: Request, res: Response): Promise<void>
         status: user.status,
         lastLoginAt: user.last_login_at,
         createdAt: user.created_at,
-        roles: roles,
+        roles: formattedRoles,
         permissions: req.user.permissions,
       },
     });
