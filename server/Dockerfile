@@ -1,3 +1,20 @@
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# 复制package文件
+COPY package*.json ./
+
+# 安装所有依赖（包括开发依赖，用于构建）
+RUN npm ci
+
+# 复制源代码
+COPY . .
+
+# 构建项目
+RUN npm run build
+
+# 生产镜像
 FROM node:18-alpine
 
 WORKDIR /app
@@ -5,14 +22,11 @@ WORKDIR /app
 # 复制package文件
 COPY package*.json ./
 
-# 安装依赖
+# 仅安装生产依赖
 RUN npm ci --only=production
 
-# 复制源代码
-COPY . .
-
-# 构建项目
-RUN npm run build
+# 从构建镜像复制编译后的代码
+COPY --from=builder /app/dist ./dist
 
 # 暴露端口
 EXPOSE 5000
