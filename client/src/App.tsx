@@ -9,6 +9,7 @@ import JieguaPage from './pages/JieguaPage';
 import HistoryPage from './pages/HistoryPage';
 import ToolsPage from './pages/ToolsPage';
 import ApiKeySettingsPage from './pages/ApiKeySettingsPage';
+import InviteManagementPage from './pages/admin/InviteManagementPage';
 import './styles/index.css';
 
 // 主布局组件（包含导航栏的页面）
@@ -151,26 +152,39 @@ const App: React.FC = () => {
 
           {/* 管理后台路由 - 需要管理员权限 */}
           <Route
-            path="/admin/*"
+            path="/admin"
             element={
               <ProtectedRoute requireRole="admin">
                 <MainLayout>
                   <div className="container mx-auto px-4 py-8">
                     <div className="bg-white rounded-lg shadow-md p-8 text-center">
                       <h2 className="text-2xl font-bold mb-4">管理后台</h2>
-                      <p className="text-gray-600 mb-4">管理界面开发中...</p>
-                      <div className="flex gap-4 justify-center">
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="flex flex-wrap gap-4 justify-center">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 opacity-50 cursor-not-allowed">
                           <h3 className="font-semibold mb-2">用户管理</h3>
-                          <p className="text-sm text-gray-600">创建、编辑、删除用户</p>
+                          <p className="text-sm text-gray-600">开发中...</p>
                         </div>
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 opacity-50 cursor-not-allowed">
                           <h3 className="font-semibold mb-2">角色管理</h3>
-                          <p className="text-sm text-gray-600">管理角色和权限</p>
+                          <p className="text-sm text-gray-600">开发中...</p>
                         </div>
+                        <Link to="/admin/invites" className="bg-purple-50 border border-purple-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                          <h3 className="font-semibold mb-2 text-purple-700">邀请码管理</h3>
+                          <p className="text-sm text-gray-600">创建、管理注册邀请码</p>
+                        </Link>
                       </div>
                     </div>
                   </div>
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/invites"
+            element={
+              <ProtectedRoute requireRole="admin">
+                <MainLayout>
+                  <InviteManagementPage />
                 </MainLayout>
               </ProtectedRoute>
             }
