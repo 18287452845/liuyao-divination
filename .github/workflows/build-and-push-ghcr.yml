@@ -23,6 +23,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: read
 
     steps:
       - name: Checkout repository
@@ -72,6 +73,10 @@ jobs:
           labels: ${{ steps.meta-backend.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            NODE_ENV=production
+          no-cache: true
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v5
@@ -82,9 +87,58 @@ jobs:
           labels: ${{ steps.meta-frontend.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            NODE_ENV=production
+          no-cache: true
+
+  codeql-analysis:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'javascript' ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: +security-extended
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm run install:all
+
+      - name: Build projects
+        run: |
+          npm run server:build
+          npm run client:build
+        continue-on-error: true
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript"
 
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     
     services:
       mysql:
@@ -130,6 +184,10 @@ jobs:
 
   security-scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
     
     steps:
       - name: Checkout repository
@@ -159,7 +217,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload Trivy results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'
         continue-on-error: true
