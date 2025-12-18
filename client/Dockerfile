@@ -1,15 +1,10 @@
 # 构建阶段
-FROM node:18-alpine as build
+FROM node:18-alpine AS build
 
 WORKDIR /app
 
-# 更新包管理器并安装构建工具
-RUN apk update && apk add --no-cache \
-    python3 \
-    make \
-    g++ \
-    git \
-    && rm -rf /var/cache/apk/*
+# 安装构建依赖（python3和build-base包含了make和g++）
+RUN apk add --no-cache python3 build-base git
 
 # 设置npm配置
 RUN npm config set registry https://registry.npmjs.org/ && \
@@ -32,14 +27,7 @@ RUN npx vite --version && \
 # 生产阶段
 FROM nginx:1.25-alpine
 
-# 安装基础工具
-RUN apk update && apk add --no-cache \
-    curl \
-    && rm -rf /var/cache/apk/*
-
-# 创建nginx用户和目录
-RUN addgroup -g 1001 -S nginx && \
-    adduser -S nginx -u 1001 -G nginx
+# nginx用户和curl已存在于基础镜像中，无需额外安装
 
 # 复制构建产物
 COPY --from=build /app/dist /usr/share/nginx/html
@@ -70,7 +58,6 @@ RUN echo 'server {' > /etc/nginx/conf.d/default.conf && \
 
 # 更改文件所有权
 RUN chown -R nginx:nginx /etc/nginx
-USER nginx
 
 # 暴露端口
 EXPOSE 80
