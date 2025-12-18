@@ -182,7 +182,7 @@ export async function getAuditLogs(filters: {
       `SELECT * FROM audit_logs ${whereClause}
        ORDER BY created_at DESC
        LIMIT ? OFFSET ?`,
-      [...params, pageSize, offset]
+      [...params, Number(pageSize), Number(offset)]
     );
 
     return { logs, total };

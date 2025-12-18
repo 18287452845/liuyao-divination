@@ -48,7 +48,7 @@ export async function getRoles(req: Request, res: Response): Promise<void> {
        ${whereClause}
        ORDER BY r.created_at DESC
        LIMIT ? OFFSET ?`,
-      [...params, Number(pageSize), offset]
+      [...params, Number(pageSize), Number(offset)]
     );
 
     res.json({
