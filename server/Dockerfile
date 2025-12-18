@@ -54,8 +54,8 @@ RUN npm ci --only=production --quiet && npm cache clean --force
 # 从构建镜像复制编译后的代码
 COPY --from=builder /app/dist ./dist
 
-# 复制必要的静态资源（如果有的话）
-COPY --from=builder /app/sql ./sql 2>/dev/null || true
+# 复制必要的静态资源（如果存在）
+RUN if [ -d /app/sql ]; then cp -r /app/sql ./sql; fi
 
 # 更改文件所有权
 RUN chown -R nodejs:nodejs /app
@@ -66,7 +66,7 @@ EXPOSE 5000
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:5000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" || exit 1
+  CMD node -e "try{require('http').get('http://localhost:5000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})}catch(e){process.exit(1)}"
 
 # 使用dumb-init作为初始化进程
 ENTRYPOINT ["dumb-init", "--"]
