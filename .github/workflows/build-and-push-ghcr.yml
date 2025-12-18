@@ -31,6 +31,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:buildx-stable-1
+          cleanup: true
 
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
