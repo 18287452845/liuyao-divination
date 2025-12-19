@@ -9,7 +9,7 @@ This is a traditional Chinese Liuyao (六爻) divination system combining modern
 **Tech Stack:**
 - Frontend: React 18 + TypeScript + Vite + Tailwind CSS
 - Backend: Node.js + Express + TypeScript
-- Database: MySQL 5.7+ (or SQLite for development)
+- Database: MySQL 5.7+
 - AI: DeepSeek API for hexagram interpretation
 
 ## Development Commands
@@ -58,7 +58,7 @@ mysql -u root -p123456 < server/sql/insert_data.sql
 mysql -u root -p123456 < server/sql/test_data.sql
 ```
 
-**Note:** SQLite is used by default in development mode and auto-initializes on first run.
+**Note:** Ensure the MySQL service or Docker container is healthy before starting the backend.
 
 ## Architecture
 
@@ -137,7 +137,7 @@ DEEPSEEK_API_URL=https://api.deepseek.com
 
 ### Database Configuration
 
-Default uses SQLite for development. For MySQL:
+Configure MySQL credentials (Docker Compose exposes the `mysql` host by default):
 ```env
 DB_HOST=localhost
 DB_PORT=3306
@@ -306,8 +306,7 @@ Check:
 2. Credentials in `.env` match your MySQL setup
 3. Database `liuyao_db` exists (created by init script)
 4. Character set is `utf8mb4`
-
-Alternative: Use SQLite (default) by not configuring MySQL env vars.
+5. Container logs (`docker-compose logs mysql`) show `ready for connections`
 
 ### DeepSeek API Failures
 Common causes:
