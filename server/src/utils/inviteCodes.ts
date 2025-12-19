@@ -20,6 +20,26 @@ export interface InviteCode {
   updatedAt: Date;
 }
 
+function mapInviteCodeRow(row: any): InviteCode {
+  const expiresAtValue = row.expiresAt ?? row.expires_at;
+  const createdAtValue = row.createdAt ?? row.created_at;
+  const updatedAtValue = row.updatedAt ?? row.updated_at;
+
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name ?? undefined,
+    description: row.description ?? undefined,
+    maxUses: Number(row.maxUses ?? row.max_uses ?? 0),
+    usedCount: Number(row.usedCount ?? row.used_count ?? 0),
+    expiresAt: expiresAtValue ? new Date(expiresAtValue) : undefined,
+    status: Number(row.status ?? 1) as 0 | 1,
+    createdBy: row.createdBy ?? row.created_by ?? undefined,
+    createdAt: createdAtValue ? new Date(createdAtValue) : new Date(),
+    updatedAt: updatedAtValue ? new Date(updatedAtValue) : new Date(),
+  };
+}
+
 export interface CreateInviteCodeData {
   code: string;
   name?: string;
@@ -71,27 +91,27 @@ export async function validateInviteCode(code: string): Promise<{
     // 统一转换为大写并去除空格
     const normalizedCode = code.trim().toUpperCase();
     
-    const inviteCode: any = await queryOne(
+    const inviteCodeRow: any = await queryOne(
       `SELECT * FROM invite_codes 
        WHERE code = ? AND status = 1`,
       [normalizedCode]
     );
 
-    if (!inviteCode) {
+    if (!inviteCodeRow) {
       return { valid: false, error: '邀请码不存在或已禁用' };
     }
 
     // 检查是否过期
-    if (inviteCode.expires_at && new Date(inviteCode.expires_at) < new Date()) {
+    if (inviteCodeRow.expires_at && new Date(inviteCodeRow.expires_at) < new Date()) {
       return { valid: false, error: '邀请码已过期' };
     }
 
     // 检查使用次数
-    if (inviteCode.used_count >= inviteCode.max_uses) {
+    if (inviteCodeRow.used_count >= inviteCodeRow.max_uses) {
       return { valid: false, error: '邀请码使用次数已达上限' };
     }
 
-    return { valid: true, inviteCode };
+    return { valid: true, inviteCode: mapInviteCodeRow(inviteCodeRow) };
   } catch (error) {
     console.error('验证邀请码失败:', error);
     return { valid: false, error: '验证邀请码时发生错误' };
@@ -167,12 +187,14 @@ export async function getInviteCodes(filters: {
     const total = countResult?.total || 0;
 
     // 查询邀请码列表
-    const codes: any = await query(
+    const rows: any = await query(
       `SELECT * FROM invite_codes ${whereClause}
        ORDER BY created_at DESC
        LIMIT ? OFFSET ?`,
       [...params, Number(pageSize), Number(offset)]
     );
+
+    const codes = (rows || []).map(mapInviteCodeRow);
 
     return { codes, total };
   } catch (error) {
@@ -186,12 +208,12 @@ export async function getInviteCodes(filters: {
  */
 export async function getInviteCodeById(id: string): Promise<InviteCode | null> {
   try {
-    const inviteCode: any = await queryOne(
+    const row: any = await queryOne(
       'SELECT * FROM invite_codes WHERE id = ?',
       [id]
     );
 
-    return inviteCode || null;
+    return row ? mapInviteCodeRow(row) : null;
   } catch (error) {
     console.error('获取邀请码详情失败:', error);
     throw error;
