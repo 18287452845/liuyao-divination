@@ -279,7 +279,7 @@ export async function resetPassword(req: Request, res: Response): Promise<void> 
 
     // 更新用户密码
     await query(
-      'UPDATE users SET password = ?, login_attempts = 0 WHERE id = ?',
+      'UPDATE users SET password = ?, login_fail_count = 0 WHERE id = ?',
       [hashedPassword, verification.user_id]
     );
 

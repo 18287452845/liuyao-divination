@@ -27,7 +27,7 @@ export async function getSecuritySettings(req: Request, res: Response): Promise<
     // 查询用户安全设置
     const user: any = await queryOne(
       `SELECT id, username, email, email_verified, phone, phone_verified, 
-              two_factor_enabled, login_attempts, locked_until
+              two_factor_enabled, login_fail_count, locked_until
        FROM users WHERE id = ?`,
       [userId]
     );
@@ -67,7 +67,7 @@ export async function getSecuritySettings(req: Request, res: Response): Promise<
           phone: user.phone,
           phoneVerified: user.phone_verified,
           twoFactorEnabled: user.two_factor_enabled,
-          loginAttempts: user.login_attempts,
+          loginAttempts: user.login_fail_count,
           lockedUntil: user.locked_until,
         },
         activeSessionCount: sessionCount?.count || 0,
@@ -235,9 +235,9 @@ export async function lockUserAccount(req: Request, res: Response): Promise<void
     const lockedUntil = new Date();
     lockedUntil.setHours(lockedUntil.getHours() + lockHours);
 
-    // 锁定账号
+    // 锁定账号（仅锁定到期时间，不修改 status；status 用于禁用/启用账号）
     await query(
-      'UPDATE users SET locked_until = ?, status = 0 WHERE id = ?',
+      'UPDATE users SET locked_until = ?, login_fail_count = 0 WHERE id = ?',
       [lockedUntil, userId]
     );
 
@@ -313,7 +313,7 @@ export async function unlockUserAccount(req: Request, res: Response): Promise<vo
 
     // 解锁账号
     await query(
-      'UPDATE users SET locked_until = NULL, status = 1, login_attempts = 0 WHERE id = ?',
+      'UPDATE users SET locked_until = NULL, login_fail_count = 0 WHERE id = ?',
       [userId]
     );
 
@@ -378,7 +378,7 @@ export async function forcePasswordReset(req: Request, res: Response): Promise<v
 
     // 更新密码
     await query(
-      'UPDATE users SET password = ?, login_attempts = 0 WHERE id = ?',
+      'UPDATE users SET password = ?, login_fail_count = 0 WHERE id = ?',
       [hashedPassword, userId]
     );
 
@@ -487,7 +487,7 @@ export async function getSecurityAuditReport(req: Request, res: Response): Promi
 
     // 账号锁定统计
     const lockedAccounts: any = await query(
-      `SELECT id, username, login_attempts, locked_until
+      `SELECT id, username, login_fail_count, locked_until
        FROM users 
        WHERE locked_until > NOW()`
     );

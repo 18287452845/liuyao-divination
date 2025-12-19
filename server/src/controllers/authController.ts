@@ -5,13 +5,14 @@
 
 import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { query, queryOne } from '../models/database';
+import { pool, query, queryOne } from '../models/database';
 import { hashPassword, verifyPassword } from '../utils/password';
 import { generateAccessToken, generateRefreshToken, verifyToken, extractTokenFromHeader } from '../utils/jwt';
 import { logSuccess, logFailure, AuditAction } from '../utils/audit';
 import { addToBlacklist } from '../utils/tokenBlacklist';
+import { recordLoginLog } from './logController';
 import { validatePassword } from '../utils/passwordPolicy';
-import { validateInviteCode, useInviteCode } from '../utils/inviteCodes';
+import { validateInviteCode } from '../utils/inviteCodes';
 
 /**
  * 用户登录
@@ -33,6 +34,16 @@ export async function login(req: Request, res: Response): Promise<void> {
         userAgent,
         errorMessage: '用户名和密码不能为空'
       });
+
+      await recordLoginLog(
+        null,
+        username || '',
+        ipAddress,
+        userAgent,
+        0,
+        '用户名或密码为空'
+      );
+
       res.status(400).json({
         success: false,
         message: '用户名和密码不能为空',
@@ -56,6 +67,16 @@ export async function login(req: Request, res: Response): Promise<void> {
         userAgent,
         errorMessage: '用户名或密码错误'
       });
+
+      await recordLoginLog(
+        null,
+        username,
+        ipAddress,
+        userAgent,
+        0,
+        '用户不存在'
+      );
+
       res.status(401).json({
         success: false,
         message: '用户名或密码错误',
@@ -75,6 +96,16 @@ export async function login(req: Request, res: Response): Promise<void> {
         userAgent,
         errorMessage: '账号已被锁定，请稍后再试'
       });
+
+      await recordLoginLog(
+        user.id,
+        user.username,
+        ipAddress,
+        userAgent,
+        0,
+        '账号被锁定'
+      );
+
       res.status(423).json({
         success: false,
         message: '账号已被锁定，请稍后再试',
@@ -94,6 +125,16 @@ export async function login(req: Request, res: Response): Promise<void> {
         userAgent,
         errorMessage: '账号已被禁用，请联系管理员'
       });
+
+      await recordLoginLog(
+        user.id,
+        user.username,
+        ipAddress,
+        userAgent,
+        0,
+        '账号已被禁用'
+      );
+
       res.status(403).json({
         success: false,
         message: '账号已被禁用，请联系管理员',
@@ -127,6 +168,15 @@ export async function login(req: Request, res: Response): Promise<void> {
           userAgent,
           errorMessage: '密码错误次数过多，账号已被锁定30分钟'
         });
+
+        await recordLoginLog(
+          user.id,
+          user.username,
+          ipAddress,
+          userAgent,
+          0,
+          '密码错误次数过多，账号已被锁定30分钟'
+        );
         
         res.status(423).json({
           success: false,
@@ -148,6 +198,15 @@ export async function login(req: Request, res: Response): Promise<void> {
           userAgent,
           errorMessage: `用户名或密码错误，还剩${maxFailCount - newFailCount}次机会`
         });
+
+        await recordLoginLog(
+          user.id,
+          user.username,
+          ipAddress,
+          userAgent,
+          0,
+          `用户名或密码错误，还剩${maxFailCount - newFailCount}次机会`
+        );
         
         res.status(401).json({
           success: false,
@@ -187,7 +246,36 @@ export async function login(req: Request, res: Response): Promise<void> {
       roles: roleCodes,
     });
 
-    // 记录登录成功日志
+    // 创建会话记录（用于会话管理/踢下线）
+    const sessionId = uuidv4();
+    try {
+      const accessVerifyResult = verifyToken(accessToken);
+      const jti = accessVerifyResult.valid ? accessVerifyResult.payload?.jti : undefined;
+      const exp = accessVerifyResult.valid ? accessVerifyResult.payload?.exp : undefined;
+
+      if (jti) {
+        const expiresAt = exp ? new Date(exp * 1000) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        await query(
+          `INSERT INTO user_sessions (id, user_id, session_token, device_info, ip_address, user_agent, expires_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)` ,
+          [
+            sessionId,
+            user.id,
+            jti,
+            JSON.stringify({}),
+            ipAddress,
+            userAgent,
+            expiresAt
+          ]
+        );
+      }
+    } catch (sessionError) {
+      console.error('创建用户会话记录失败:', sessionError);
+    }
+
+    await recordLoginLog(user.id, user.username, ipAddress, userAgent, 1, undefined, sessionId);
+
+    // 记录登录成功审计日志
     await logSuccess({
       userId: user.id,
       username: user.username,
@@ -351,29 +439,56 @@ export async function register(req: Request, res: Response): Promise<void> {
     // 加密密码
     const hashedPassword = await hashPassword(password);
 
-    // 创建用户
+    // 创建用户（与邀请码消耗放在同一个事务中，避免并发超发邀请码）
     const userId = uuidv4();
-    await query(
-      `INSERT INTO users (id, username, password, email, real_name, status, last_password_change)
-       VALUES (?, ?, ?, ?, ?, 1, NOW())`,
-      [userId, username, hashedPassword, email || null, realName || null]
-    );
 
-    // 分配默认角色（普通用户）
-    const defaultRole: any = await queryOne(
-      "SELECT id FROM roles WHERE role_code = 'user' AND status = 1"
-    );
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
 
-    if (defaultRole) {
-      const userRoleId = uuidv4();
-      await query(
-        'INSERT INTO user_roles (id, user_id, role_id) VALUES (?, ?, ?)',
-        [userRoleId, userId, defaultRole.id]
+      await connection.execute(
+        `INSERT INTO users (id, username, password, email, real_name, status, last_password_change)
+         VALUES (?, ?, ?, ?, ?, 1, NOW())`,
+        [userId, username, hashedPassword, email || null, realName || null]
       );
-    }
 
-    // 使用邀请码
-    await useInviteCode(inviteCode);
+      // 分配默认角色（普通用户）
+      const [defaultRoleRows]: any = await connection.execute(
+        "SELECT id FROM roles WHERE role_code = 'user' AND status = 1"
+      );
+      const defaultRole = defaultRoleRows?.[0];
+
+      if (defaultRole) {
+        const userRoleId = uuidv4();
+        await connection.execute(
+          'INSERT INTO user_roles (id, user_id, role_id) VALUES (?, ?, ?)',
+          [userRoleId, userId, defaultRole.id]
+        );
+      }
+
+      // 消耗邀请码（原子更新，避免并发超用）
+      const normalizedInviteCode = inviteCode.trim().toUpperCase();
+      const [inviteUpdateResult]: any = await connection.execute(
+        `UPDATE invite_codes
+         SET used_count = used_count + 1
+         WHERE code = ?
+           AND status = 1
+           AND (expires_at IS NULL OR expires_at > NOW())
+           AND used_count < max_uses`,
+        [normalizedInviteCode]
+      );
+
+      if (!inviteUpdateResult || inviteUpdateResult.affectedRows === 0) {
+        throw new Error('邀请码已失效或使用次数已达上限');
+      }
+
+      await connection.commit();
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
 
     // 记录注册成功日志
     await logSuccess({
@@ -396,6 +511,37 @@ export async function register(req: Request, res: Response): Promise<void> {
     });
   } catch (error) {
     console.error('注册错误:', error);
+
+    const errMessage = error instanceof Error ? error.message : String(error);
+
+    // 邀请码并发消耗失败等业务错误
+    if (errMessage.includes('邀请码')) {
+      await logFailure({
+        username: req.body?.username,
+        action: AuditAction.REGISTER,
+        resourceType: 'auth',
+        details: { reason: errMessage, inviteCode: req.body?.inviteCode },
+        ipAddress: req.ip || req.connection.remoteAddress || '',
+        userAgent: req.get('User-Agent') || '',
+        errorMessage: errMessage
+      });
+
+      res.status(400).json({
+        success: false,
+        message: errMessage,
+      });
+      return;
+    }
+
+    const errorCode = (error as any)?.code;
+    if (errorCode === 'ER_DUP_ENTRY' || errMessage.includes('Duplicate')) {
+      res.status(409).json({
+        success: false,
+        message: '用户名或邮箱已存在',
+      });
+      return;
+    }
+
     res.status(500).json({
       success: false,
       message: '注册失败，请稍后重试',
@@ -532,10 +678,20 @@ export async function changePassword(req: Request, res: Response): Promise<void>
     const hashedNewPassword = await hashPassword(newPassword);
 
     // 更新密码
-    await query('UPDATE users SET password = ? WHERE id = ?', [
+    await query('UPDATE users SET password = ?, last_password_change = NOW() WHERE id = ?', [
       hashedNewPassword,
       req.user.userId,
     ]);
+
+    await logSuccess({
+      userId: req.user.userId,
+      username: req.user.username,
+      action: AuditAction.CHANGE_PASSWORD,
+      resourceType: 'auth',
+      details: {},
+      ipAddress: req.ip || req.connection.remoteAddress || '',
+      userAgent: req.get('User-Agent') || ''
+    });
 
     res.json({
       success: true,
@@ -688,13 +844,27 @@ export async function logout(req: Request, res: Response): Promise<void> {
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + 1);
 
+        const tokenJti = payload.payload.jti || token.substring(0, 20);
+
         await addToBlacklist({
-          tokenJti: payload.payload.jti || token.substring(0, 20),
+          tokenJti,
           userId: req.user.userId,
           tokenType: 'access',
           expiresAt: expiresAt,
           reason: '用户主动登出'
         });
+
+        // 同步使当前会话失效（如果存在会话记录）
+        if (payload.payload.jti) {
+          try {
+            await query(
+              'UPDATE user_sessions SET is_active = 0 WHERE user_id = ? AND session_token = ?',
+              [req.user.userId, payload.payload.jti]
+            );
+          } catch (sessionError) {
+            console.error('更新会话状态失败:', sessionError);
+          }
+        }
       }
     }
 
