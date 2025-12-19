@@ -215,27 +215,9 @@ const LoginPage: React.FC = () => {
             </button>
           </form>
 
-          {/* 测试账号提示 */}
-          {isLogin && (
-            <div className="mt-8 p-4 bg-blue-50/50 border border-blue-100 rounded-xl text-sm text-blue-800/80">
-              <div className="font-bold mb-2 flex items-center gap-2">
-                <span className="text-lg">💡</span> 测试账号
-              </div>
-              <div className="space-y-1.5 font-mono text-xs bg-white/50 p-3 rounded-lg">
-                <div className="flex justify-between">
-                  <span>管理员:</span>
-                  <span className="text-blue-900">admin / admin123</span>
-                </div>
-                <div className="flex justify-between border-t border-blue-100 pt-1.5">
-                  <span>普通用户:</span>
-                  <span className="text-blue-900">testuser / test123</span>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* 底部版权 */}
         </div>
 
-        {/* 底部版权 */}
         <div className="text-center mt-8 text-sm text-gray-500 font-serif">
           <p>© 2024 六爻排盘系统 · 传统文化数字化平台</p>
         </div>
