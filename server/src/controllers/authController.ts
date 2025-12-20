@@ -313,6 +313,17 @@ export async function login(req: Request, res: Response): Promise<void> {
         console.log('执行的SQL:', repairResult.sqlExecuted);
       }
       console.log('==================\n');
+      
+      // 如果修复成功，延迟后返回，让客户端重新尝试
+      if (repairResult.success) {
+        console.log('>>> 数据库已修复，请重新尝试登录');
+        res.status(503).json({
+          success: false,
+          message: '数据库已自动升级，请重新登录',
+          retryable: true,
+        });
+        return;
+      }
     }
     
     res.status(500).json({

@@ -321,6 +321,14 @@ async function repairMissingColumn(error: DBError): Promise<RepairResult> {
       table: 'users',
       sql: 'ALTER TABLE users ADD COLUMN last_password_change TIMESTAMP NULL COMMENT "最后密码修改时间" AFTER locked_until;'
     },
+    'last_login_at': {
+      table: 'users',
+      sql: 'ALTER TABLE users ADD COLUMN last_login_at TIMESTAMP NULL COMMENT "最后登录时间" AFTER last_password_change;'
+    },
+    'last_login_ip': {
+      table: 'users',
+      sql: 'ALTER TABLE users ADD COLUMN last_login_ip VARCHAR(45) COMMENT "最后登录IP" AFTER last_login_at;'
+    },
     'refresh_token': {
       table: 'sessions',
       sql: 'ALTER TABLE sessions ADD COLUMN refresh_token VARCHAR(255) UNIQUE AFTER token;'
@@ -344,6 +352,11 @@ async function repairMissingColumn(error: DBError): Promise<RepairResult> {
     await query(schema.sql);
     console.log(`>>> 字段 ${columnName} 添加成功！`);
 
+    // 对于users表的登录相关字段，确保一次性添加所有缺失的字段
+    if (schema.table === 'users' && ['login_fail_count', 'locked_until', 'last_password_change'].includes(columnName)) {
+      await ensureAllLoginSecurityFields();
+    }
+
     return {
       success: true,
       message: `字段 ${columnName} 已自动添加到表 ${schema.table}`,
@@ -356,6 +369,54 @@ async function repairMissingColumn(error: DBError): Promise<RepairResult> {
       success: false,
       message: `添加字段 ${columnName} 失败: ${addError instanceof Error ? addError.message : String(addError)}`
     };
+  }
+}
+
+/**
+ * 确保所有登录安全相关字段都存在
+ */
+async function ensureAllLoginSecurityFields(): Promise<void> {
+  const fieldsToCheck = ['login_fail_count', 'locked_until', 'last_password_change', 'last_login_at', 'last_login_ip'];
+  const columnSchemas: { [key: string]: string } = {
+    'login_fail_count': 'ALTER TABLE users ADD COLUMN login_fail_count INT DEFAULT 0 COMMENT "登录失败次数" AFTER status;',
+    'locked_until': 'ALTER TABLE users ADD COLUMN locked_until TIMESTAMP NULL COMMENT "账号锁定截止时间" AFTER login_fail_count;',
+    'last_password_change': 'ALTER TABLE users ADD COLUMN last_password_change TIMESTAMP NULL COMMENT "最后密码修改时间" AFTER locked_until;',
+    'last_login_at': 'ALTER TABLE users ADD COLUMN last_login_at TIMESTAMP NULL COMMENT "最后登录时间" AFTER last_password_change;',
+    'last_login_ip': 'ALTER TABLE users ADD COLUMN last_login_ip VARCHAR(45) COMMENT "最后登录IP" AFTER last_login_at;'
+  };
+
+  console.log('\n>>> 检查并补充所有登录安全字段...');
+
+  for (const fieldName of fieldsToCheck) {
+    try {
+      // 检查字段是否存在
+      const checkResult: any = await query(
+        `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = ?`,
+        [fieldName]
+      );
+
+      if (!checkResult || checkResult.length === 0) {
+        console.log(`>>> 字段 ${fieldName} 不存在，正在添加...`);
+        try {
+          await query(columnSchemas[fieldName]);
+          console.log(`>>> 字段 ${fieldName} 添加成功！`);
+        } catch (addErr) {
+          // 如果字段已存在，会捕获 Duplicate column name 错误，这是正常的
+          const addErrMsg = addErr instanceof Error ? addErr.message : String(addErr);
+          if (addErrMsg.includes('Duplicate column name')) {
+            console.log(`>>> 字段 ${fieldName} 已存在（忽略添加错误）`);
+          } else {
+            console.error(`>>> 添加字段 ${fieldName} 失败:`, addErr);
+          }
+        }
+      } else {
+        console.log(`>>> 字段 ${fieldName} 已存在`);
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.log(`>>> 字段 ${fieldName} 检查结果: ${errorMsg}`);
+    }
   }
 }
 
