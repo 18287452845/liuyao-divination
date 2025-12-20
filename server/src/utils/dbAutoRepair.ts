@@ -3,7 +3,7 @@
  * 自动诊断和修复常见的数据库错误
  */
 
-import { pool, query } from '../models/database';
+import { query } from '../models/database';
 
 export interface DBError extends Error {
   code?: string;

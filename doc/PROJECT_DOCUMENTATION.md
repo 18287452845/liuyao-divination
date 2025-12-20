@@ -28,7 +28,7 @@
 - ✅ **多种起卦方式**：支持时间、数字、手动三种起卦方法
 - ✅ **完整排盘系统**：自动装纳甲、地支、五行、六亲、六神
 - ✅ **AI智能解卦**：集成DeepSeek API进行专业解卦分析
-- ✅ **数据持久化**：MySQL/SQLite数据库存储历史记录
+- ✅ **数据持久化**：MySQL数据库存储历史记录
 - ✅ **响应式设计**：支持PC端和移动端访问
 - ✅ **传统风格**：中国传统配色和UI设计
 
@@ -92,7 +92,7 @@
 - **工具库**: lunar-javascript (农历计算)
 
 #### 3. 数据访问层 (Data Access Layer)
-- **数据库**: MySQL 5.7+ / SQLite3
+- **数据库**: MySQL 5.7+
 - **ORM**: 原生SQL查询
 - **连接池**: mysql2
 
@@ -123,7 +123,6 @@
 | Express | 4.x | Web框架 |
 | TypeScript | 5.x | 类型安全 |
 | MySQL | 5.7+ | 数据库 |
-| SQLite3 | 5.x | 开发数据库 |
 | lunar-javascript | 1.x | 农历转换 |
 
 ### 开发工具
@@ -730,7 +729,7 @@ export const api = {
 #### 最低配置
 - **Node.js**: >= 18.0.0
 - **npm**: >= 9.0.0
-- **MySQL**: >= 5.7 (或 SQLite3)
+- **MySQL**: >= 5.7
 - **操作系统**: Windows 10+, macOS 10.15+, Ubuntu 20.04+
 
 #### 推荐配置
@@ -782,16 +781,11 @@ DEEPSEEK_API_KEY=your_api_key_here
 DEEPSEEK_API_URL=https://api.deepseek.com
 
 # 数据库配置（MySQL）
-DB_TYPE=mysql
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=123456
 DB_NAME=liuyao_db
-
-# 数据库配置（SQLite - 开发环境默认）
-# DB_TYPE=sqlite
-# DB_PATH=./data/liuyao.db
 ```
 
 #### 4. 初始化数据库
@@ -813,9 +807,6 @@ mysql -u root -p123456 < sql/init_database.sql
 mysql -u root -p123456 < sql/insert_data.sql
 mysql -u root -p123456 < sql/test_data.sql
 ```
-
-**使用SQLite** (默认):
-数据库会在首次启动时自动创建。
 
 #### 5. 启动开发服务器
 
@@ -859,7 +850,6 @@ npm run build
 NODE_ENV=production
 PORT=5000
 DEEPSEEK_API_KEY=your_production_api_key
-DB_TYPE=mysql
 DB_HOST=your_db_host
 # ... 其他配置
 ```
@@ -959,7 +949,6 @@ services:
     ports:
       - "5000:5000"
     environment:
-      DB_TYPE: mysql
       DB_HOST: mysql
       DB_USER: root
       DB_PASSWORD: 123456
@@ -1038,7 +1027,6 @@ lt/
 │   │   ├── insert_data.sql          # 基础数据
 │   │   ├── test_data.sql            # 测试数据
 │   │   └── README.md                # SQL文档
-│   ├── data/                        # 数据库文件(SQLite)
 │   ├── dist/                        # 编译输出
 │   ├── package.json                 # 依赖配置
 │   ├── tsconfig.json               # TS配置

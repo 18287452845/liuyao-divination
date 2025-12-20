@@ -488,7 +488,7 @@ interface SearchFilter {
 
 **全文搜索**:
 - 使用Elasticsearch（大型系统）
-- 或SQLite FTS5（轻量级）
+- 或使用 MySQL FULLTEXT 索引（轻量级）
 
 ---
 
