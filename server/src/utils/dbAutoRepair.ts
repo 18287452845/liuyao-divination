@@ -309,6 +309,18 @@ async function repairMissingColumn(error: DBError): Promise<RepairResult> {
       table: 'users',
       sql: 'ALTER TABLE users ADD COLUMN last_login TIMESTAMP NULL AFTER status;'
     },
+    'login_fail_count': {
+      table: 'users',
+      sql: 'ALTER TABLE users ADD COLUMN login_fail_count INT DEFAULT 0 COMMENT "登录失败次数" AFTER status;'
+    },
+    'locked_until': {
+      table: 'users',
+      sql: 'ALTER TABLE users ADD COLUMN locked_until TIMESTAMP NULL COMMENT "账号锁定截止时间" AFTER login_fail_count;'
+    },
+    'last_password_change': {
+      table: 'users',
+      sql: 'ALTER TABLE users ADD COLUMN last_password_change TIMESTAMP NULL COMMENT "最后密码修改时间" AFTER locked_until;'
+    },
     'refresh_token': {
       table: 'sessions',
       sql: 'ALTER TABLE sessions ADD COLUMN refresh_token VARCHAR(255) UNIQUE AFTER token;'

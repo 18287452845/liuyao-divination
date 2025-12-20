@@ -13,6 +13,7 @@ import { addToBlacklist } from '../utils/tokenBlacklist';
 import { recordLoginLog } from './logController';
 import { validatePassword } from '../utils/passwordPolicy';
 import { validateInviteCode } from '../utils/inviteCodes';
+import { diagnosisAndRepair, DBError } from '../utils/dbAutoRepair';
 
 /**
  * 用户登录
@@ -299,6 +300,21 @@ export async function login(req: Request, res: Response): Promise<void> {
     });
   } catch (error) {
     console.error('登录错误:', error);
+    
+    // 尝试自动修复数据库错误
+    if ((error as any)?.code === 'ER_BAD_FIELD_ERROR') {
+      const dbError = error as DBError;
+      const repairResult = await diagnosisAndRepair(dbError, 'SELECT id, username, password, status, login_fail_count, locked_until FROM users WHERE username = ?', [req.body.username]);
+      
+      console.log('\n=== 自动修复结果 ===');
+      console.log('状态:', repairResult.success ? '成功' : '失败');
+      console.log('信息:', repairResult.message);
+      if (repairResult.sqlExecuted) {
+        console.log('执行的SQL:', repairResult.sqlExecuted);
+      }
+      console.log('==================\n');
+    }
+    
     res.status(500).json({
       success: false,
       message: '登录失败，请稍后重试',
