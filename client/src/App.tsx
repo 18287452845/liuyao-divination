@@ -9,6 +9,7 @@ import JieguaPage from './pages/JieguaPage';
 import HistoryPage from './pages/HistoryPage';
 import ToolsPage from './pages/ToolsPage';
 import ApiKeySettingsPage from './pages/ApiKeySettingsPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 import InviteManagementPage from './pages/admin/InviteManagementPage';
 import './styles/index.css';
 
@@ -33,7 +34,8 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 <Link to="/" className="text-gray-700 hover:text-primary font-medium transition-colors">起卦</Link>
                 <Link to="/history" className="text-gray-700 hover:text-primary font-medium transition-colors">历史记录</Link>
                 <Link to="/tools" className="text-gray-700 hover:text-primary font-medium transition-colors">工具箱</Link>
-                <Link to="/settings/api-key" className="text-gray-700 hover:text-primary font-medium transition-colors">设置</Link>
+                <Link to="/settings/api-key" className="text-gray-700 hover:text-primary font-medium transition-colors">API设置</Link>
+                <Link to="/settings/password" className="text-gray-700 hover:text-primary font-medium transition-colors">修改密码</Link>
 
                 {/* 管理员菜单 */}
                 {isAdmin() && (
@@ -145,6 +147,16 @@ const App: React.FC = () => {
               <ProtectedRoute>
                 <MainLayout>
                   <ApiKeySettingsPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/password"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <ChangePasswordPage />
                 </MainLayout>
               </ProtectedRoute>
             }
