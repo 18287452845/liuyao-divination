@@ -30,8 +30,8 @@ show_help() {
     echo "  -h, --host <主机>          MySQL主机 (默认: localhost)"
     echo "  -P, --port <端口>          MySQL端口 (默认: 3306)"
     echo "  --skip-init                跳过数据库初始化"
-    echo "  --skip-data                跳过基础数据插入"
-    echo "  --skip-enhancement         跳过认证权限增强功能"
+    echo "  --skip-data                跳过基础数据插入（含 64 卦数据）"
+    echo "  --skip-enhancement         跳过认证权限/审计增强脚本（02_*）"
     echo "  --force                    忽略错误继续执行"
     echo "  --help                     显示此帮助信息"
     echo ""
@@ -257,6 +257,7 @@ main() {
         
         files=(
             "sql/01_init_data.sql:基础数据插入"
+            "sql/insert_64_gua_complete.sql:64卦数据插入"
         )
         
         for item in "${files[@]}"; do
@@ -282,6 +283,7 @@ main() {
         echo ""
         
         files=(
+            "sql/02_auth_permissions_migration.sql:认证/审计基础迁移"
             "sql/02_auth_permissions_enhancement.sql:认证权限管理增强功能"
         )
         

@@ -13,7 +13,6 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-liuyao_pass}
     volumes:
       - mysql-data:/var/lib/mysql
-      - ./server/sql:/docker-entrypoint-initdb.d:ro
     ports:
       - "${MYSQL_PORT:-3306}:3306"
     networks:
@@ -23,6 +22,27 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # 数据库初始化（临时：docker compose 启动时重置并按最新 SQL 重建）
+  db-init:
+    image: mysql:5.7
+    container_name: liuyao-mysql-init
+    restart: "no"
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-liuyao_db}
+      DB_RESET_ON_STARTUP: ${DB_RESET_ON_STARTUP:-true}
+      TZ: Asia/Shanghai
+    volumes:
+      - ./server/sql:/sql:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - liuyao-network
+    command: ["sh", "/sql/docker-compose-db-reset-and-init.sh"]
 
   # 后端服务 - 支持本地构建和 GHCR 拉取
   server:
@@ -51,6 +71,8 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     ports:
       - "${SERVER_PORT:-5000}:5000"
     networks:
