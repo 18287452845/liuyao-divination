@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS email_verifications (
   email VARCHAR(100) NOT NULL COMMENT '邮箱地址',
   verification_type VARCHAR(20) NOT NULL COMMENT '验证类型: register/reset_password/change_email',
   token VARCHAR(100) NOT NULL COMMENT '验证令牌',
-  expires_at TIMESTAMP NOT NULL COMMENT '过期时间',
+  expires_at TIMESTAMP NULL COMMENT '过期时间',
   is_used BOOLEAN DEFAULT FALSE COMMENT '是否已使用',
   used_at TIMESTAMP NULL COMMENT '使用时间',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS user_sessions (
   is_active BOOLEAN DEFAULT TRUE COMMENT '是否活跃',
   last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '最后活跃时间',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  expires_at TIMESTAMP NOT NULL COMMENT '过期时间',
+  expires_at TIMESTAMP NULL COMMENT '过期时间',
 
   UNIQUE KEY uk_session_token (session_token),
   INDEX idx_user_id (user_id),
