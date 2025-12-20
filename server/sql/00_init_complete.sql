@@ -97,6 +97,11 @@ CREATE TABLE IF NOT EXISTS users (
   deepseek_api_key VARCHAR(255) COMMENT 'DeepSeek API密钥(用户个人)',
   api_key_updated_at TIMESTAMP NULL COMMENT 'API密钥最后更新时间',
 
+  -- 登录安全字段
+  login_fail_count INT DEFAULT 0 COMMENT '登录失败次数',
+  locked_until TIMESTAMP NULL COMMENT '账号锁定截止时间',
+  last_password_change TIMESTAMP NULL COMMENT '最后密码修改时间',
+
   last_login_at TIMESTAMP NULL COMMENT '最后登录时间',
   last_login_ip VARCHAR(45) COMMENT '最后登录IP',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
