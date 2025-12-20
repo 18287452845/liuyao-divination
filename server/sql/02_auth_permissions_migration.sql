@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS token_blacklist (
   user_id VARCHAR(50) COMMENT '用户ID',
   token_type VARCHAR(20) NOT NULL COMMENT 'Token类型: access/refresh',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  expires_at TIMESTAMP NOT NULL COMMENT 'Token过期时间',
+  expires_at TIMESTAMP NULL COMMENT 'Token过期时间',
   reason VARCHAR(255) COMMENT '加入黑名单原因',
 
   UNIQUE KEY uk_token_jti (token_jti),
