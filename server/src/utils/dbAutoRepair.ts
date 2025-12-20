@@ -185,71 +185,120 @@ async function repairMissingTable(error: DBError): Promise<RepairResult> {
     `,
     'audit_logs': `
       CREATE TABLE IF NOT EXISTS audit_logs (
-        id VARCHAR(36) PRIMARY KEY,
-        user_id VARCHAR(36),
-        username VARCHAR(50),
-        action VARCHAR(50) NOT NULL,
-        resource_type VARCHAR(50),
-        resource_id VARCHAR(36),
-        status VARCHAR(20) DEFAULT 'success',
-        details JSON,
-        ip_address VARCHAR(50),
-        user_agent TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        id VARCHAR(50) PRIMARY KEY COMMENT '审计日志ID',
+        user_id VARCHAR(50) COMMENT '用户ID',
+        username VARCHAR(50) COMMENT '用户名',
+        action VARCHAR(100) NOT NULL COMMENT '操作类型',
+        resource_type VARCHAR(50) COMMENT '资源类型',
+        resource_id VARCHAR(50) COMMENT '资源ID',
+        details TEXT COMMENT '详细信息(JSON格式)',
+        ip_address VARCHAR(45) COMMENT 'IP地址',
+        user_agent TEXT COMMENT '用户代理',
+        status TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-失败 1-成功',
+        error_message TEXT COMMENT '错误信息',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
         INDEX idx_user_id (user_id),
+        INDEX idx_username (username),
         INDEX idx_action (action),
         INDEX idx_resource (resource_type, resource_id),
         INDEX idx_status (status),
         INDEX idx_created_at (created_at)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审计日志表';
     `,
-    'sessions': `
-      CREATE TABLE IF NOT EXISTS sessions (
-        id VARCHAR(36) PRIMARY KEY,
-        user_id VARCHAR(36) NOT NULL,
-        token VARCHAR(255) UNIQUE NOT NULL,
-        refresh_token VARCHAR(255) UNIQUE,
-        ip_address VARCHAR(50),
-        user_agent TEXT,
-        expires_at TIMESTAMP NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    'user_sessions': `
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id VARCHAR(50) PRIMARY KEY COMMENT '会话ID',
+        user_id VARCHAR(50) NOT NULL COMMENT '用户ID',
+        session_token VARCHAR(255) NOT NULL COMMENT '会话令牌',
+        device_info TEXT COMMENT '设备信息(JSON格式)',
+        ip_address VARCHAR(45) COMMENT '登录IP',
+        user_agent TEXT COMMENT '用户代理',
+        is_active BOOLEAN DEFAULT TRUE COMMENT '是否活跃',
+        last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '最后活跃时间',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        expires_at TIMESTAMP NOT NULL COMMENT '过期时间',
+        UNIQUE KEY uk_session_token (session_token),
         INDEX idx_user_id (user_id),
-        INDEX idx_token (token),
-        INDEX idx_refresh_token (refresh_token),
+        INDEX idx_is_active (is_active),
+        INDEX idx_last_activity (last_activity),
         INDEX idx_expires_at (expires_at)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户会话表';
     `,
     'token_blacklist': `
       CREATE TABLE IF NOT EXISTS token_blacklist (
-        id VARCHAR(36) PRIMARY KEY,
-        token VARCHAR(255) UNIQUE NOT NULL,
-        user_id VARCHAR(36),
-        reason VARCHAR(100),
-        expires_at TIMESTAMP NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_token (token),
+        id VARCHAR(50) PRIMARY KEY COMMENT '黑名单记录ID',
+        token_jti VARCHAR(255) NOT NULL COMMENT 'Token唯一标识(jti)',
+        user_id VARCHAR(50) COMMENT '用户ID',
+        token_type VARCHAR(20) NOT NULL COMMENT 'Token类型: access/refresh',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        expires_at TIMESTAMP NOT NULL COMMENT 'Token过期时间',
+        reason VARCHAR(255) COMMENT '加入黑名单原因',
+        UNIQUE KEY uk_token_jti (token_jti),
         INDEX idx_user_id (user_id),
+        INDEX idx_token_type (token_type),
+        INDEX idx_created_at (created_at),
         INDEX idx_expires_at (expires_at)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Token黑名单表';
     `,
     'operation_logs': `
       CREATE TABLE IF NOT EXISTS operation_logs (
-        id VARCHAR(36) PRIMARY KEY,
-        user_id VARCHAR(36),
-        username VARCHAR(50),
-        operation VARCHAR(100) NOT NULL,
-        module VARCHAR(50),
-        details JSON,
-        ip_address VARCHAR(50),
-        user_agent TEXT,
-        status TINYINT DEFAULT 1,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        id VARCHAR(50) PRIMARY KEY COMMENT '操作日志ID',
+        user_id VARCHAR(50) COMMENT '操作用户ID',
+        username VARCHAR(50) COMMENT '操作用户名',
+        operation_type VARCHAR(50) NOT NULL COMMENT '操作类型',
+        operation_module VARCHAR(50) NOT NULL COMMENT '操作模块',
+        operation_description TEXT COMMENT '操作描述',
+        request_method VARCHAR(10) COMMENT '请求方法',
+        request_url VARCHAR(500) COMMENT '请求URL',
+        request_params TEXT COMMENT '请求参数(JSON格式)',
+        response_status INT COMMENT '响应状态码',
+        ip_address VARCHAR(45) COMMENT 'IP地址',
+        user_agent TEXT COMMENT '用户代理',
+        operation_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
+        execution_time INT COMMENT '执行时间(毫秒)',
         INDEX idx_user_id (user_id),
-        INDEX idx_operation (operation),
-        INDEX idx_module (module),
-        INDEX idx_created_at (created_at)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        INDEX idx_username (username),
+        INDEX idx_operation_type (operation_type),
+        INDEX idx_operation_module (operation_module),
+        INDEX idx_operation_time (operation_time)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='操作日志表';
+    `,
+    'login_logs': `
+      CREATE TABLE IF NOT EXISTS login_logs (
+        id VARCHAR(50) PRIMARY KEY COMMENT '日志ID',
+        user_id VARCHAR(50) COMMENT '用户ID',
+        username VARCHAR(50) NOT NULL COMMENT '用户名',
+        ip_address VARCHAR(45) COMMENT 'IP地址',
+        user_agent TEXT COMMENT '用户代理',
+        login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '登录时间',
+        login_status TINYINT NOT NULL COMMENT '登录状态: 0-失败 1-成功',
+        failure_reason VARCHAR(255) COMMENT '失败原因',
+        session_id VARCHAR(100) COMMENT '会话ID',
+        INDEX idx_user_id (user_id),
+        INDEX idx_username (username),
+        INDEX idx_login_time (login_time),
+        INDEX idx_login_status (login_status),
+        INDEX idx_ip_address (ip_address)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='登录日志表';
+    `,
+    'email_verifications': `
+      CREATE TABLE IF NOT EXISTS email_verifications (
+        id VARCHAR(50) PRIMARY KEY COMMENT '验证ID',
+        user_id VARCHAR(50) NOT NULL COMMENT '用户ID',
+        email VARCHAR(100) NOT NULL COMMENT '邮箱地址',
+        verification_type VARCHAR(20) NOT NULL COMMENT '验证类型: register/reset_password/change_email',
+        token VARCHAR(100) NOT NULL COMMENT '验证令牌',
+        expires_at TIMESTAMP NOT NULL COMMENT '过期时间',
+        is_used BOOLEAN DEFAULT FALSE COMMENT '是否已使用',
+        used_at TIMESTAMP NULL COMMENT '使用时间',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        INDEX idx_user_id (user_id),
+        INDEX idx_email (email),
+        INDEX idx_verification_type (verification_type),
+        INDEX idx_token (token),
+        INDEX idx_expires_at (expires_at),
+        INDEX idx_is_used (is_used)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='邮箱验证表';
     `
   };
 
@@ -336,6 +385,14 @@ async function repairMissingColumn(error: DBError): Promise<RepairResult> {
     'user_agent': {
       table: 'audit_logs',
       sql: 'ALTER TABLE audit_logs ADD COLUMN user_agent TEXT AFTER ip_address;'
+    },
+    'token_jti': {
+      table: 'token_blacklist',
+      sql: 'ALTER TABLE token_blacklist ADD COLUMN token_jti VARCHAR(255) NOT NULL COMMENT "Token唯一标识(jti)" AFTER id;'
+    },
+    'created_at': {
+      table: 'token_blacklist',
+      sql: 'ALTER TABLE token_blacklist ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT "创建时间" AFTER token_type;'
     }
   };
 
