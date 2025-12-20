@@ -2,11 +2,11 @@
 
 ## 📋 文件说明
 
-### 必需文件（按顺序执行）
+### 必需文件（按顺序执行，推荐全量安装）
 
 1. **00_init_complete.sql** - 完整数据库结构
    - 创建数据库 `liuyao_db`
-   - 创建所有表（卦象记录、八卦、64卦、用户、角色、权限等）
+   - 创建所有基础表（卦象记录、八卦、64卦、用户、角色、权限等）
    - 包含索引和外键
 
 2. **01_init_data.sql** - 初始化数据
@@ -16,7 +16,20 @@
    - 角色权限关联
    - 默认用户（admin/admin123，testuser/test123）
 
-3. **insert_64_gua_complete.sql** - 完整64卦数据
+3. **02_auth_permissions_migration.sql** - 认证/审计基础迁移
+   - 审计日志（audit_logs）
+   - 邀请码（invite_codes）
+   - Token 黑名单（token_blacklist）基础结构
+   - users 表扩展字段与新增权限
+
+4. **02_auth_permissions_enhancement.sql** - 认证权限增强
+   - 登录日志（login_logs）
+   - 操作日志（operation_logs）
+   - 会话（user_sessions）
+   - 邮箱验证（email_verifications）
+   - Token 黑名单增强与更多权限
+
+5. **insert_64_gua_complete.sql** - 完整64卦数据
    - 所有64卦的卦名、卦辞、爻辞
 
 ### ~~已废弃的文件（不再需要）~~
@@ -29,6 +42,26 @@
 - ~~add_verification_fields.sql~~ → 已合并到 00_init_complete.sql
 - ~~add_user_apikey.sql~~ → 已合并到 00_init_complete.sql
 - ~~test_data.sql~~ → 不再需要
+
+## 🐳 Docker Compose 自动初始化（临时）
+
+项目的 `docker-compose.yml` 会在 MySQL 启动并通过健康检查后，自动运行一次 `db-init` 服务来重建数据库：
+
+1. `DROP DATABASE IF EXISTS liuyao_db`（清空旧库）
+2. 按顺序执行：
+   - `00_init_complete.sql`
+   - `01_init_data.sql`
+   - `02_auth_permissions_migration.sql`
+   - `02_auth_permissions_enhancement.sql`
+   - `insert_64_gua_complete.sql`
+
+如需保留已有数据，可在 `.env` 中设置：
+
+```env
+DB_RESET_ON_STARTUP=false
+```
+
+> 备注：该功能目前用于开发/测试环境，后续可根据稳定性决定是否移除或改为可选 Profile。
 
 ## 🚀 快速开始
 

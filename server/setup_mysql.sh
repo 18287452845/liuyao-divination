@@ -51,7 +51,7 @@ echo "[成功] MySQL连接正常"
 echo ""
 
 # 创建数据库和表结构
-echo "步骤 1/3: 创建数据库和表结构..."
+echo "步骤 1/4: 创建数据库和表结构..."
 mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" < sql/00_init_complete.sql
 if [ $? -ne 0 ]; then
     echo "[错误] 数据库初始化失败"
@@ -61,21 +61,39 @@ echo "[成功] 数据库和表创建完成"
 echo ""
 
 # 插入基础数据
-echo "步骤 2/3: 插入基础数据..."
+echo "步骤 2/4: 插入基础数据..."
 mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" < sql/01_init_data.sql
 if [ $? -ne 0 ]; then
     echo "[错误] 数据插入失败"
     exit 1
 fi
+
+mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" < sql/insert_64_gua_complete.sql
+if [ $? -ne 0 ]; then
+    echo "[错误] 64卦数据插入失败"
+    exit 1
+fi
+
 echo "[成功] 基础数据插入完成"
 echo ""
 
 # 认证权限增强（可选）
-echo "步骤 3/3: 认证权限管理增强（可选）..."
-echo "是否要安装认证权限增强功能？(y/N)"
+echo "步骤 3/4: 认证权限/审计增强（可选）..."
+echo "是否要安装认证权限增强功能（审计/日志/会话/黑名单/邮箱验证等）？(y/N)"
 read -r enhance_response
 
 if [[ "$enhance_response" =~ ^[Yy]$ ]]; then
+    if [ -f "sql/02_auth_permissions_migration.sql" ]; then
+        mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" < sql/02_auth_permissions_migration.sql
+        if [ $? -eq 0 ]; then
+            echo "[成功] 认证/审计基础迁移完成"
+        else
+            echo "[警告] 认证/审计基础迁移失败，但基础功能可用"
+        fi
+    else
+        echo "[警告] 未找到认证/审计迁移文件"
+    fi
+
     if [ -f "sql/02_auth_permissions_enhancement.sql" ]; then
         mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" < sql/02_auth_permissions_enhancement.sql
         if [ $? -eq 0 ]; then
@@ -95,9 +113,11 @@ echo ""
 # 验证数据
 echo "步骤 4/4: 验证数据..."
 mysql -h "$MYSQL_HOST" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" -D liuyao_db -e "
-SELECT '八卦数据:' as info, COUNT(*) as count FROM trigrams
+SELECT 'trigrams' as table_name, COUNT(*) as count FROM trigrams
 UNION ALL
-SELECT '卦象数据:', COUNT(*) FROM gua_data;"
+SELECT 'gua_data', COUNT(*) FROM gua_data
+UNION ALL
+SELECT 'users', COUNT(*) FROM users;"
 echo ""
 
 echo "================================"
