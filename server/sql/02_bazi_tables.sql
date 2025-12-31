@@ -206,14 +206,14 @@ ON DUPLICATE KEY UPDATE index_num=VALUES(index_num);
 -- --------------------------------------------
 -- 添加八字相关权限到 permissions 表
 -- --------------------------------------------
-INSERT INTO permissions (permission_name, description, category, created_at) VALUES
-  ('bazi:create', '创建八字记录', 'bazi', NOW()),
-  ('bazi:view', '查看八字记录', 'bazi', NOW()),
-  ('bazi:delete', '删除八字记录', 'bazi', NOW()),
-  ('bazi:aiAnalysis', 'AI批注八字', 'bazi', NOW()),
-  ('bazi:verify', '验证反馈八字', 'bazi', NOW()),
-  ('bazi:export', '导出八字记录', 'bazi', NOW())
-ON DUPLICATE KEY UPDATE permission_name=VALUES(permission_name);
+INSERT INTO permissions (permission_name, permission_code, description, module, created_at) VALUES
+  ('创建八字记录', 'bazi:create', '创建八字记录', 'bazi', NOW()),
+  ('查看八字记录', 'bazi:view', '查看八字记录', 'bazi', NOW()),
+  ('删除八字记录', 'bazi:delete', '删除八字记录', 'bazi', NOW()),
+  ('AI批注八字', 'bazi:aiAnalysis', 'AI批注八字', 'bazi', NOW()),
+  ('验证反馈八字', 'bazi:verify', '验证反馈八字', 'bazi', NOW()),
+  ('导出八字记录', 'bazi:export', '导出八字记录', 'bazi', NOW())
+ON DUPLICATE KEY UPDATE permission_code=VALUES(permission_code);
 
 -- --------------------------------------------
 -- 为默认 'user' 角色分配八字权限
@@ -223,7 +223,7 @@ SELECT r.id, p.id
 FROM roles r
 CROSS JOIN permissions p
 WHERE r.name = 'user'
-  AND p.category = 'bazi'
+  AND p.module = 'bazi'
   AND NOT EXISTS (
     SELECT 1 FROM role_permissions rp2
     WHERE rp2.role_id = r.id AND rp2.permission_id = p.id
@@ -237,7 +237,7 @@ SELECT r.id, p.id
 FROM roles r
 CROSS JOIN permissions p
 WHERE r.name = 'admin'
-  AND p.category = 'bazi'
+  AND p.module = 'bazi'
   AND NOT EXISTS (
     SELECT 1 FROM role_permissions rp2
     WHERE rp2.role_id = r.id AND rp2.permission_id = p.id
