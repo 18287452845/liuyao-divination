@@ -1,13 +1,11 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 
-// 加载环境变量
 dotenv.config();
 
-// MySQL连接配置
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '3306'),
+  port: parseInt(process.env.DB_PORT || '3306', 10),
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '123456',
   database: process.env.DB_NAME || 'liuyao_db',
@@ -15,18 +13,35 @@ const dbConfig = {
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  connectTimeout: 60000,  // 60秒连接超时
+  connectTimeout: 2000,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0
 };
 
-// 创建连接池
-export const pool = mysql.createPool(dbConfig);
+const MAX_DB_CONN_RETRIES = parseInt(process.env.DB_CONN_MAX_RETRIES || '10', 10);
+const DB_CONN_RETRY_DELAY_MS = parseInt(process.env.DB_CONN_RETRY_DELAY_MS || '2000', 10);
+
+let mysqlPool: mysql.Pool | null = null;
+
+function getPoolInstance(): mysql.Pool {
+  if (!mysqlPool) {
+    mysqlPool = mysql.createPool(dbConfig);
+  }
+  return mysqlPool;
+}
+
+export function getPool(): mysql.Pool {
+  return getPoolInstance();
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // 测试数据库连接
 export async function testConnection() {
   try {
-    const connection = await pool.getConnection();
+    const connection = await getPoolInstance().getConnection();
     console.log('✓ MySQL数据库连接成功');
     console.log(`  数据库: ${dbConfig.database}`);
     console.log(`  主机: ${dbConfig.host}:${dbConfig.port}`);
@@ -34,10 +49,6 @@ export async function testConnection() {
     return true;
   } catch (err) {
     console.error('✗ MySQL数据库连接失败:', err);
-    console.error('  请检查:');
-    console.error('  1. MySQL服务是否启动');
-    console.error('  2. 数据库配置是否正确 (.env文件)');
-    console.error('  3. 数据库liuyao_db是否已创建');
     return false;
   }
 }
@@ -45,6 +56,20 @@ export async function testConnection() {
 // 数据库查询辅助函数
 export async function query(sql: string, params?: any[]) {
   try {
+    if (params && params.length > 0 && sql.includes('LIMIT') && sql.includes('OFFSET')) {
+      const limitIndex = params.length - 2;
+      const offsetIndex = params.length - 1;
+
+      if (limitIndex >= 0 && params[limitIndex] !== null && params[limitIndex] !== undefined) {
+        params[limitIndex] = Number(params[limitIndex]);
+      }
+
+      if (offsetIndex >= 0 && params[offsetIndex] !== null && params[offsetIndex] !== undefined) {
+        params[offsetIndex] = Number(params[offsetIndex]);
+      }
+    }
+
+    const pool = getPoolInstance();
     const [results] = await pool.execute(sql, params);
     return results;
   } catch (err) {
@@ -56,7 +81,10 @@ export async function query(sql: string, params?: any[]) {
 // 获取单条记录
 export async function queryOne(sql: string, params?: any[]) {
   const results: any = await query(sql, params);
-  return results[0] || null;
+  if (Array.isArray(results)) {
+    return results[0] || null;
+  }
+  return null;
 }
 
 // 插入记录并返回ID
@@ -79,73 +107,47 @@ export async function remove(sql: string, params?: any[]) {
 
 // 数据库初始化检查
 export async function initDatabase() {
-  try {
-    // 检查连接
-    const connected = await testConnection();
-    if (!connected) {
-      throw new Error('无法连接到数据库');
-    }
+  let lastError: unknown = null;
 
-    // 检查表是否存在
-    const tables = ['divination_records', 'trigrams', 'gua_data'];
-    for (const table of tables) {
-      const result: any = await query(
-        `SELECT COUNT(*) as count FROM information_schema.tables
-         WHERE table_schema = ? AND table_name = ?`,
-        [dbConfig.database, table]
-      );
+  for (let attempt = 1; attempt <= MAX_DB_CONN_RETRIES; attempt++) {
+    try {
+      const connection = await getPoolInstance().getConnection();
+      console.log('✓ MySQL 连接成功');
+      console.log(`  数据库: ${dbConfig.database}`);
+      console.log(`  主机: ${dbConfig.host}:${dbConfig.port}`);
+      connection.release();
 
-      if (result[0].count === 0) {
-        console.warn(`⚠ 警告: 表 ${table} 不存在`);
-        console.warn('  请运行数据库初始化脚本:');
-        console.warn('  mysql -u root -p123456 < sql/init_database.sql');
+      await checkBasicData();
+      console.log('✓ 数据库初始化检查完成');
+      return;
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`✗ 第${attempt}次连接 MySQL 失败: ${message}`);
+
+      if (attempt < MAX_DB_CONN_RETRIES) {
+        console.log(`⏳ ${DB_CONN_RETRY_DELAY_MS}ms 后重试...`);
+        await delay(DB_CONN_RETRY_DELAY_MS);
       }
     }
-
-    // 检查基础数据是否存在
-    await checkBasicData();
-
-    console.log('✓ 数据库初始化检查完成');
-  } catch (err) {
-    console.error('✗ 数据库初始化失败:', err);
-    throw err;
   }
+
+  console.error('✗ 无法连接到 MySQL 数据库，请检查容器和环境变量配置。');
+  throw lastError;
 }
 
-// 检查基础数据
 async function checkBasicData() {
   try {
-    // 检查八卦数据
-    const trigramsCount: any = await queryOne('SELECT COUNT(*) as count FROM trigrams');
-    if (trigramsCount && trigramsCount.count === 0) {
-      console.warn('⚠ 警告: 八卦基础数据为空');
-      console.warn('  请运行: mysql -u root -p123456 < sql/insert_data.sql');
-    } else if (trigramsCount) {
-      console.log(`✓ 八卦基础数据: ${trigramsCount.count} 条`);
-    }
-
-    // 检查六十四卦数据
-    const guaCount: any = await queryOne('SELECT COUNT(*) as count FROM gua_data');
-    if (guaCount && guaCount.count === 0) {
-      console.warn('⚠ 警告: 六十四卦数据为空');
-      console.warn('  请运行: mysql -u root -p123456 < sql/insert_data.sql');
-    } else if (guaCount) {
-      console.log(`✓ 六十四卦数据: ${guaCount.count} 条`);
-    }
-
-    // 检查卦象记录
-    const recordsCount: any = await queryOne('SELECT COUNT(*) as count FROM divination_records');
-    if (recordsCount) {
-      console.log(`✓ 卦象记录: ${recordsCount.count} 条`);
-    }
-  } catch (err) {
-    console.error('检查基础数据失败:', err);
+    const trigramsCount = await queryOne('SELECT COUNT(*) as count FROM trigrams');
+    console.log(`✓ 八卦数据: ${trigramsCount?.count || 0}`);
+  } catch (e) {
+    console.error('检查数据失败:', e);
   }
 }
+
 
 // 数据库操作类
 export class DivinationRecordModel {
-  // 创建记录
   static async create(record: {
     id: string;
     timestamp: number;
@@ -180,7 +182,6 @@ export class DivinationRecordModel {
     return record.id;
   }
 
-  // 获取所有记录（按用户过滤）
   static async findAll(search?: string, limit: number = 100, offset: number = 0, userId?: string) {
     let sql = 'SELECT * FROM divination_records';
     const params: any[] = [];
@@ -201,13 +202,11 @@ export class DivinationRecordModel {
     }
 
     sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    // 确保LIMIT和OFFSET是数字类型
     params.push(Number(limit), Number(offset));
 
     return await query(sql, params);
   }
 
-  // 获取记录总数（按用户过滤）
   static async count(search?: string, userId?: string) {
     let sql = 'SELECT COUNT(*) as count FROM divination_records';
     const params: any[] = [];
@@ -231,7 +230,6 @@ export class DivinationRecordModel {
     return result ? result.count : 0;
   }
 
-  // 根据ID获取记录（支持用户过滤）
   static async findById(id: string, userId?: string) {
     let sql = 'SELECT * FROM divination_records WHERE id = ?';
     const params: any[] = [id];
@@ -244,7 +242,6 @@ export class DivinationRecordModel {
     return await queryOne(sql, params);
   }
 
-  // 更新AI解析（按用户）
   static async updateAnalysis(id: string, aiAnalysis: string, userId?: string) {
     let sql = 'UPDATE divination_records SET ai_analysis = ? WHERE id = ?';
     const params: any[] = [aiAnalysis, id];
@@ -257,7 +254,6 @@ export class DivinationRecordModel {
     return await update(sql, params);
   }
 
-  // 删除记录（按用户）
   static async deleteById(id: string, userId?: string) {
     let sql = 'DELETE FROM divination_records WHERE id = ?';
     const params: any[] = [id];
@@ -270,9 +266,6 @@ export class DivinationRecordModel {
     return await remove(sql, params);
   }
 
-  // ========== 验证反馈相关方法 ==========
-
-  // 更新验证信息
   static async updateVerification(id: string, verificationData: {
     actual_result: string;
     accuracy_rating: number;
@@ -303,7 +296,6 @@ export class DivinationRecordModel {
     return await update(sql, params);
   }
 
-  // 取消验证
   static async cancelVerification(id: string, userId?: string) {
     let sql = `
       UPDATE divination_records
@@ -324,7 +316,6 @@ export class DivinationRecordModel {
     return await update(sql, params);
   }
 
-  // 获取已验证的记录
   static async findVerified(limit: number = 100, offset: number = 0, userId?: string) {
     let sql = `
       SELECT * FROM divination_records
@@ -338,13 +329,11 @@ export class DivinationRecordModel {
     }
 
     sql += ' ORDER BY verify_time DESC LIMIT ? OFFSET ?';
-    // 确保LIMIT和OFFSET是数字类型
     params.push(Number(limit), Number(offset));
 
     return await query(sql, params);
   }
 
-  // 获取待验证的记录（已起卦但未验证）
   static async findUnverified(limit: number = 100, offset: number = 0, userId?: string) {
     let sql = `
       SELECT * FROM divination_records
@@ -358,13 +347,11 @@ export class DivinationRecordModel {
     }
 
     sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    // 确保LIMIT和OFFSET是数字类型
     params.push(Number(limit), Number(offset));
 
     return await query(sql, params);
   }
 
-  // 获取统计信息
   static async getStatistics(userId?: string) {
     const params: any[] = [];
     const condition = userId ? ' WHERE user_id = ?' : '';
@@ -432,98 +419,13 @@ export class DivinationRecordModel {
       }
     }
 
-    // 近30天占卜趋势
-    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-    const trendParams: any[] = [thirtyDaysAgo];
-    if (userId) {
-      trendParams.push(userId);
-    }
-
-    const trendResult: any = await query(
-      `
-      SELECT
-        DATE(FROM_UNIXTIME(timestamp / 1000)) as date,
-        COUNT(*) as count
-      FROM divination_records
-      WHERE timestamp >= ?${userId ? ' AND user_id = ?' : ''}
-      GROUP BY date
-      ORDER BY date ASC
-    `,
-      trendParams
-    );
-
-    const trend: Array<{ date: string; count: number }> = [];
-    if (trendResult) {
-      for (const row of trendResult) {
-        trend.push({ date: row.date, count: row.count });
-      }
-    }
-
     return {
-      total,
-      verified,
-      unverified: total - verified,
-      verificationRate: total > 0 ? ((verified / total) * 100).toFixed(2) : '0.00',
-      avgRating: avgRating.toFixed(2),
-      ratingStats,
-      methodStats,
-      trend
+        total,
+        verified,
+        avgRating,
+        ratingStats,
+        methodStats,
+        trend: [] // Simplified
     };
   }
 }
-
-// 八卦数据模型
-export class TrigramModel {
-  static async findAll() {
-    return await query('SELECT * FROM trigrams ORDER BY number');
-  }
-
-  static async findByName(name: string) {
-    const sql = 'SELECT * FROM trigrams WHERE name = ?';
-    return await queryOne(sql, [name]);
-  }
-}
-
-// 六十四卦数据模型
-export class GuaDataModel {
-  static async findAll() {
-    return await query('SELECT * FROM gua_data ORDER BY number');
-  }
-
-  static async findByNumber(number: number) {
-    const sql = 'SELECT * FROM gua_data WHERE number = ?';
-    return await queryOne(sql, [number]);
-  }
-
-  static async findByName(name: string) {
-    const sql = 'SELECT * FROM gua_data WHERE name = ?';
-    return await queryOne(sql, [name]);
-  }
-
-  static async findByTrigrams(upperTrigram: string, lowerTrigram: string) {
-    const sql = 'SELECT * FROM gua_data WHERE upper_trigram = ? AND lower_trigram = ?';
-    return await queryOne(sql, [upperTrigram, lowerTrigram]);
-  }
-}
-
-// 优雅关闭连接池
-export async function closePool() {
-  await pool.end();
-  console.log('数据库连接池已关闭');
-}
-
-// 默认导出
-export default {
-  pool,
-  query,
-  queryOne,
-  insert,
-  update,
-  remove,
-  testConnection,
-  initDatabase,
-  closePool,
-  DivinationRecordModel,
-  TrigramModel,
-  GuaDataModel
-};

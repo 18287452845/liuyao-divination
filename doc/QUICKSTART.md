@@ -55,14 +55,14 @@ A: 检查端口5000是否被占用，或修改 `server/.env` 中的 PORT
 A: 检查DeepSeek API密钥是否正确配置
 
 ### Q: 数据库错误？
-A: 删除 `server/data/liuyao.db` 文件，重启服务器自动重建
+A: 确保 MySQL 服务/容器在运行，必要时删除 `mysql-data` 卷或重新执行 `server/sql` 脚本完成初始化
 
 ## 项目结构速览
 
 ```
 lt/
 ├── client/          # 前端（React + TypeScript + Tailwind）
-├── server/          # 后端（Express + SQLite）
+├── server/          # 后端（Express + MySQL）
 ├── package.json     # 根配置（包含启动脚本）
 └── README.md        # 完整文档
 ```

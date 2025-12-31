@@ -25,8 +25,8 @@ if %errorlevel% neq 0 (
 echo [成功] MySQL连接正常
 echo.
 
-echo 步骤 1/3: 创建数据库和表结构...
-mysql -h %MYSQL_HOST% -u %MYSQL_USER% -p%MYSQL_PASSWORD% < sql\init_database.sql
+echo 步骤 1/6: 创建数据库和表结构...
+mysql -h %MYSQL_HOST% -u %MYSQL_USER% -p%MYSQL_PASSWORD% < sql\00_init_complete.sql
 if %errorlevel% neq 0 (
     echo [错误] 数据库初始化失败
     pause
@@ -35,8 +35,8 @@ if %errorlevel% neq 0 (
 echo [成功] 数据库和表创建完成
 echo.
 
-echo 步骤 2/3: 插入基础数据...
-mysql -h %MYSQL_HOST% -u %MYSQL_USER% -p%MYSQL_PASSWORD% < sql\insert_data.sql
+echo 步骤 2/6: 插入基础数据...
+mysql -h %MYSQL_HOST% -u %MYSQL_USER% -p%MYSQL_PASSWORD% < sql\01_init_data.sql
 if %errorlevel% neq 0 (
     echo [错误] 数据插入失败
     pause
@@ -45,8 +45,38 @@ if %errorlevel% neq 0 (
 echo [成功] 基础数据插入完成
 echo.
 
-echo 步骤 3/3: 验证数据...
-mysql -h %MYSQL_HOST% -u %MYSQL_USER% -p%MYSQL_PASSWORD% -D liuyao_db -e "SELECT '八卦数据:' as info, COUNT(*) as count FROM trigrams UNION ALL SELECT '卦象数据:', COUNT(*) FROM gua_data;"
+echo 步骤 3/6: 执行认证/审计基础迁移...
+mysql -h %MYSQL_HOST% -u %MYSQL_USER% -p%MYSQL_PASSWORD% < sql\02_auth_permissions_migration.sql
+if %errorlevel% neq 0 (
+    echo [错误] 迁移脚本执行失败
+    pause
+    exit /b 1
+)
+echo [成功] 认证/审计基础迁移完成
+echo.
+
+echo 步骤 4/6: 执行认证权限增强...
+mysql -h %MYSQL_HOST% -u %MYSQL_USER% -p%MYSQL_PASSWORD% < sql\02_auth_permissions_enhancement.sql
+if %errorlevel% neq 0 (
+    echo [错误] 增强脚本执行失败
+    pause
+    exit /b 1
+)
+echo [成功] 认证权限增强完成
+echo.
+
+echo 步骤 5/6: 插入完整64卦数据...
+mysql -h %MYSQL_HOST% -u %MYSQL_USER% -p%MYSQL_PASSWORD% < sql\insert_64_gua_complete.sql
+if %errorlevel% neq 0 (
+    echo [错误] 64卦数据插入失败
+    pause
+    exit /b 1
+)
+echo [成功] 64卦数据插入完成
+echo.
+
+echo 步骤 6/6: 验证数据...
+mysql -h %MYSQL_HOST% -u %MYSQL_USER% -p%MYSQL_PASSWORD% -D liuyao_db -e "SELECT 'trigrams' as table_name, COUNT(*) as count FROM trigrams UNION ALL SELECT 'gua_data', COUNT(*) FROM gua_data UNION ALL SELECT 'users', COUNT(*) FROM users;"
 echo.
 
 echo ================================

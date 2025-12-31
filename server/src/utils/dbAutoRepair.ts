@@ -1,0 +1,613 @@
+/**
+ * 数据库自动修复工具
+ * 自动诊断和修复常见的数据库错误
+ */
+
+import { query } from '../models/database';
+
+export interface DBError extends Error {
+  code?: string;
+  errno?: number;
+  sql?: string;
+  sqlState?: string;
+  sqlMessage?: string;
+}
+
+export interface RepairResult {
+  success: boolean;
+  message: string;
+  action?: string;
+  sqlExecuted?: string;
+}
+
+/**
+ * 诊断和修复数据库错误
+ */
+export async function diagnosisAndRepair(error: DBError, originalSql: string, params?: any[]): Promise<RepairResult> {
+  console.log('\n=== 数据库错误自动诊断 ===');
+  console.log('错误代码:', error.code);
+  console.log('错误信息:', error.sqlMessage || error.message);
+  console.log('SQL语句:', originalSql);
+  console.log('参数:', params);
+
+  try {
+    // 1. ER_WRONG_ARGUMENTS - 参数类型错误
+    if (error.code === 'ER_WRONG_ARGUMENTS' && error.errno === 1210) {
+      return await repairWrongArguments(originalSql, params);
+    }
+
+    // 2. ER_NO_SUCH_TABLE - 表不存在
+    if (error.code === 'ER_NO_SUCH_TABLE' || error.errno === 1146) {
+      return await repairMissingTable(error);
+    }
+
+    // 3. ER_BAD_FIELD_ERROR - 字段不存在
+    if (error.code === 'ER_BAD_FIELD_ERROR' || error.errno === 1054) {
+      return await repairMissingColumn(error);
+    }
+
+    // 4. ER_DUP_FIELDNAME - 重复字段
+    if (error.code === 'ER_DUP_FIELDNAME' || error.errno === 1060) {
+      return await repairDuplicateColumn(error);
+    }
+
+    // 5. ER_PARSE_ERROR - SQL语法错误
+    if (error.code === 'ER_PARSE_ERROR' || error.errno === 1064) {
+      return await repairSyntaxError(error, originalSql);
+    }
+
+    return {
+      success: false,
+      message: `未知错误类型: ${error.code || error.errno}，无法自动修复`
+    };
+  } catch (repairError) {
+    console.error('自动修复失败:', repairError);
+    return {
+      success: false,
+      message: `自动修复失败: ${repairError instanceof Error ? repairError.message : String(repairError)}`
+    };
+  }
+}
+
+/**
+ * 修复参数类型错误 (ER_WRONG_ARGUMENTS)
+ */
+async function repairWrongArguments(sql: string, params?: any[]): Promise<RepairResult> {
+  console.log('\n>>> 检测到参数类型错误 (ER_WRONG_ARGUMENTS)');
+  
+  if (!params || params.length === 0) {
+    return {
+      success: false,
+      message: '参数为空，无法修复'
+    };
+  }
+
+  // 检查是否包含 LIMIT 和 OFFSET
+  if (sql.includes('LIMIT') && sql.includes('OFFSET')) {
+    console.log('>>> 检测到 LIMIT/OFFSET 语句');
+    
+    // 找出非数字类型的参数
+    const issues: string[] = [];
+    params.forEach((param, index) => {
+      const paramType = typeof param;
+      if (param !== null && param !== undefined) {
+        if (paramType === 'string' && !isNaN(Number(param))) {
+          issues.push(`参数[${index}] = "${param}" (字符串) 应该是数字类型`);
+        } else if (paramType !== 'number' && paramType !== 'string' && paramType !== 'object') {
+          issues.push(`参数[${index}] = ${param} (${paramType}) 类型异常`);
+        }
+      }
+    });
+
+    if (issues.length > 0) {
+      console.log('>>> 发现问题:');
+      issues.forEach(issue => console.log('   ', issue));
+      
+      return {
+        success: true,
+        message: 'LIMIT/OFFSET 参数必须是数字类型，请确保在传递参数前使用 Number() 进行类型转换',
+        action: 'TYPE_CONVERSION_NEEDED',
+        sqlExecuted: '建议修复代码:\n' +
+                     '// 修复前:\n' +
+                     'params.push(limit, offset)\n\n' +
+                     '// 修复后:\n' +
+                     'params.push(Number(limit), Number(offset))'
+      };
+    }
+  }
+
+  // 检查其他可能导致参数错误的情况
+  const paramTypes = params.map((p, i) => `[${i}]: ${typeof p} = ${p}`).join(', ');
+  console.log('>>> 参数类型:', paramTypes);
+
+  return {
+    success: true,
+    message: '参数类型可能不匹配，请检查所有参数是否为正确的类型（数字、字符串、日期等）',
+    action: 'CHECK_PARAM_TYPES'
+  };
+}
+
+/**
+ * 修复表不存在错误 (ER_NO_SUCH_TABLE)
+ */
+async function repairMissingTable(error: DBError): Promise<RepairResult> {
+  console.log('\n>>> 检测到表不存在错误');
+  
+  // 从错误信息中提取表名
+  const tableNameMatch = error.sqlMessage?.match(/Table '.*?\.(\w+)' doesn't exist/);
+  if (!tableNameMatch) {
+    return {
+      success: false,
+      message: '无法从错误信息中提取表名'
+    };
+  }
+
+  const tableName = tableNameMatch[1];
+  console.log(`>>> 缺失的表: ${tableName}`);
+
+  // 表结构映射
+  const tableSchemas: { [key: string]: string } = {
+    'invite_codes': `
+      CREATE TABLE IF NOT EXISTS invite_codes (
+        id VARCHAR(36) PRIMARY KEY,
+        code VARCHAR(50) UNIQUE NOT NULL,
+        name VARCHAR(100),
+        description TEXT,
+        max_uses INT DEFAULT 1,
+        used_count INT DEFAULT 0,
+        expires_at DATETIME,
+        status TINYINT DEFAULT 1,
+        created_by VARCHAR(36),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_code (code),
+        INDEX idx_status (status),
+        INDEX idx_created_by (created_by),
+        INDEX idx_expires_at (expires_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `,
+    'users': `
+      CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR(36) PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        email VARCHAR(100),
+        role VARCHAR(20) DEFAULT 'user',
+        status TINYINT DEFAULT 1,
+        invite_code VARCHAR(50),
+        last_login TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_username (username),
+        INDEX idx_email (email),
+        INDEX idx_role (role)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `,
+    'audit_logs': `
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id VARCHAR(50) PRIMARY KEY COMMENT '审计日志ID',
+        user_id VARCHAR(50) COMMENT '用户ID',
+        username VARCHAR(50) COMMENT '用户名',
+        action VARCHAR(100) NOT NULL COMMENT '操作类型',
+        resource_type VARCHAR(50) COMMENT '资源类型',
+        resource_id VARCHAR(50) COMMENT '资源ID',
+        details TEXT COMMENT '详细信息(JSON格式)',
+        ip_address VARCHAR(45) COMMENT 'IP地址',
+        user_agent TEXT COMMENT '用户代理',
+        status TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-失败 1-成功',
+        error_message TEXT COMMENT '错误信息',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        INDEX idx_user_id (user_id),
+        INDEX idx_username (username),
+        INDEX idx_action (action),
+        INDEX idx_resource (resource_type, resource_id),
+        INDEX idx_status (status),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审计日志表';
+    `,
+    'user_sessions': `
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id VARCHAR(50) PRIMARY KEY COMMENT '会话ID',
+        user_id VARCHAR(50) NOT NULL COMMENT '用户ID',
+        session_token VARCHAR(255) NOT NULL COMMENT '会话令牌',
+        device_info TEXT COMMENT '设备信息(JSON格式)',
+        ip_address VARCHAR(45) COMMENT '登录IP',
+        user_agent TEXT COMMENT '用户代理',
+        is_active BOOLEAN DEFAULT TRUE COMMENT '是否活跃',
+        last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '最后活跃时间',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        expires_at TIMESTAMP NOT NULL COMMENT '过期时间',
+        UNIQUE KEY uk_session_token (session_token),
+        INDEX idx_user_id (user_id),
+        INDEX idx_is_active (is_active),
+        INDEX idx_last_activity (last_activity),
+        INDEX idx_expires_at (expires_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户会话表';
+    `,
+    'token_blacklist': `
+      CREATE TABLE IF NOT EXISTS token_blacklist (
+        id VARCHAR(50) PRIMARY KEY COMMENT '黑名单记录ID',
+        token_jti VARCHAR(255) NOT NULL COMMENT 'Token唯一标识(jti)',
+        user_id VARCHAR(50) COMMENT '用户ID',
+        token_type VARCHAR(20) NOT NULL COMMENT 'Token类型: access/refresh',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        expires_at TIMESTAMP NOT NULL COMMENT 'Token过期时间',
+        reason VARCHAR(255) COMMENT '加入黑名单原因',
+        UNIQUE KEY uk_token_jti (token_jti),
+        INDEX idx_user_id (user_id),
+        INDEX idx_token_type (token_type),
+        INDEX idx_created_at (created_at),
+        INDEX idx_expires_at (expires_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Token黑名单表';
+    `,
+    'operation_logs': `
+      CREATE TABLE IF NOT EXISTS operation_logs (
+        id VARCHAR(50) PRIMARY KEY COMMENT '操作日志ID',
+        user_id VARCHAR(50) COMMENT '操作用户ID',
+        username VARCHAR(50) COMMENT '操作用户名',
+        operation_type VARCHAR(50) NOT NULL COMMENT '操作类型',
+        operation_module VARCHAR(50) NOT NULL COMMENT '操作模块',
+        operation_description TEXT COMMENT '操作描述',
+        request_method VARCHAR(10) COMMENT '请求方法',
+        request_url VARCHAR(500) COMMENT '请求URL',
+        request_params TEXT COMMENT '请求参数(JSON格式)',
+        response_status INT COMMENT '响应状态码',
+        ip_address VARCHAR(45) COMMENT 'IP地址',
+        user_agent TEXT COMMENT '用户代理',
+        operation_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
+        execution_time INT COMMENT '执行时间(毫秒)',
+        INDEX idx_user_id (user_id),
+        INDEX idx_username (username),
+        INDEX idx_operation_type (operation_type),
+        INDEX idx_operation_module (operation_module),
+        INDEX idx_operation_time (operation_time)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='操作日志表';
+    `,
+    'login_logs': `
+      CREATE TABLE IF NOT EXISTS login_logs (
+        id VARCHAR(50) PRIMARY KEY COMMENT '日志ID',
+        user_id VARCHAR(50) COMMENT '用户ID',
+        username VARCHAR(50) NOT NULL COMMENT '用户名',
+        ip_address VARCHAR(45) COMMENT 'IP地址',
+        user_agent TEXT COMMENT '用户代理',
+        login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '登录时间',
+        login_status TINYINT NOT NULL COMMENT '登录状态: 0-失败 1-成功',
+        failure_reason VARCHAR(255) COMMENT '失败原因',
+        session_id VARCHAR(100) COMMENT '会话ID',
+        INDEX idx_user_id (user_id),
+        INDEX idx_username (username),
+        INDEX idx_login_time (login_time),
+        INDEX idx_login_status (login_status),
+        INDEX idx_ip_address (ip_address)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='登录日志表';
+    `,
+    'email_verifications': `
+      CREATE TABLE IF NOT EXISTS email_verifications (
+        id VARCHAR(50) PRIMARY KEY COMMENT '验证ID',
+        user_id VARCHAR(50) NOT NULL COMMENT '用户ID',
+        email VARCHAR(100) NOT NULL COMMENT '邮箱地址',
+        verification_type VARCHAR(20) NOT NULL COMMENT '验证类型: register/reset_password/change_email',
+        token VARCHAR(100) NOT NULL COMMENT '验证令牌',
+        expires_at TIMESTAMP NOT NULL COMMENT '过期时间',
+        is_used BOOLEAN DEFAULT FALSE COMMENT '是否已使用',
+        used_at TIMESTAMP NULL COMMENT '使用时间',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        INDEX idx_user_id (user_id),
+        INDEX idx_email (email),
+        INDEX idx_verification_type (verification_type),
+        INDEX idx_token (token),
+        INDEX idx_expires_at (expires_at),
+        INDEX idx_is_used (is_used)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='邮箱验证表';
+    `
+  };
+
+  const schema = tableSchemas[tableName];
+  if (!schema) {
+    return {
+      success: false,
+      message: `表 ${tableName} 不存在，且没有可用的自动修复方案。请手动运行数据库初始化脚本。`
+    };
+  }
+
+  try {
+    console.log(`>>> 正在创建表 ${tableName}...`);
+    await query(schema);
+    console.log(`>>> 表 ${tableName} 创建成功！`);
+
+    return {
+      success: true,
+      message: `表 ${tableName} 已自动创建`,
+      action: 'TABLE_CREATED',
+      sqlExecuted: schema.trim()
+    };
+  } catch (createError) {
+    console.error(`>>> 创建表失败:`, createError);
+    return {
+      success: false,
+      message: `创建表 ${tableName} 失败: ${createError instanceof Error ? createError.message : String(createError)}`
+    };
+  }
+}
+
+/**
+ * 修复字段不存在错误 (ER_BAD_FIELD_ERROR)
+ */
+async function repairMissingColumn(error: DBError): Promise<RepairResult> {
+  console.log('\n>>> 检测到字段不存在错误');
+  
+  // 从错误信息中提取字段名和表名
+  const columnMatch = error.sqlMessage?.match(/Unknown column '(\w+)'/);
+  if (!columnMatch) {
+    return {
+      success: false,
+      message: '无法从错误信息中提取字段名'
+    };
+  }
+
+  const columnName = columnMatch[1];
+  console.log(`>>> 缺失的字段: ${columnName}`);
+
+  // 常见字段修复方案
+  const columnSchemas: { [key: string]: { table: string; sql: string } } = {
+    'invite_code': {
+      table: 'users',
+      sql: 'ALTER TABLE users ADD COLUMN invite_code VARCHAR(50) AFTER status;'
+    },
+    'last_login': {
+      table: 'users',
+      sql: 'ALTER TABLE users ADD COLUMN last_login TIMESTAMP NULL AFTER status;'
+    },
+    'login_fail_count': {
+      table: 'users',
+      sql: 'ALTER TABLE users ADD COLUMN login_fail_count INT DEFAULT 0 COMMENT "登录失败次数" AFTER status;'
+    },
+    'locked_until': {
+      table: 'users',
+      sql: 'ALTER TABLE users ADD COLUMN locked_until TIMESTAMP NULL COMMENT "账号锁定截止时间" AFTER login_fail_count;'
+    },
+    'last_password_change': {
+      table: 'users',
+      sql: 'ALTER TABLE users ADD COLUMN last_password_change TIMESTAMP NULL COMMENT "最后密码修改时间" AFTER locked_until;'
+    },
+    'last_login_at': {
+      table: 'users',
+      sql: 'ALTER TABLE users ADD COLUMN last_login_at TIMESTAMP NULL COMMENT "最后登录时间" AFTER last_password_change;'
+    },
+    'last_login_ip': {
+      table: 'users',
+      sql: 'ALTER TABLE users ADD COLUMN last_login_ip VARCHAR(45) COMMENT "最后登录IP" AFTER last_login_at;'
+    },
+    'refresh_token': {
+      table: 'sessions',
+      sql: 'ALTER TABLE sessions ADD COLUMN refresh_token VARCHAR(255) UNIQUE AFTER token;'
+    },
+    'user_agent': {
+      table: 'audit_logs',
+      sql: 'ALTER TABLE audit_logs ADD COLUMN user_agent TEXT AFTER ip_address;'
+    },
+    'token_jti': {
+      table: 'token_blacklist',
+      sql: 'ALTER TABLE token_blacklist ADD COLUMN token_jti VARCHAR(255) NOT NULL COMMENT "Token唯一标识(jti)" AFTER id;'
+    },
+    'created_at': {
+      table: 'token_blacklist',
+      sql: 'ALTER TABLE token_blacklist ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT "创建时间" AFTER token_type;'
+    }
+  };
+
+  const schema = columnSchemas[columnName];
+  if (!schema) {
+    return {
+      success: false,
+      message: `字段 ${columnName} 不存在，且没有可用的自动修复方案。请检查数据库表结构。`
+    };
+  }
+
+  try {
+    console.log(`>>> 正在添加字段 ${columnName} 到表 ${schema.table}...`);
+    await query(schema.sql);
+    console.log(`>>> 字段 ${columnName} 添加成功！`);
+
+    // 对于users表的登录相关字段，确保一次性添加所有缺失的字段
+    if (schema.table === 'users' && ['login_fail_count', 'locked_until', 'last_password_change'].includes(columnName)) {
+      await ensureAllLoginSecurityFields();
+    }
+
+    return {
+      success: true,
+      message: `字段 ${columnName} 已自动添加到表 ${schema.table}`,
+      action: 'COLUMN_ADDED',
+      sqlExecuted: schema.sql
+    };
+  } catch (addError) {
+    console.error(`>>> 添加字段失败:`, addError);
+    return {
+      success: false,
+      message: `添加字段 ${columnName} 失败: ${addError instanceof Error ? addError.message : String(addError)}`
+    };
+  }
+}
+
+/**
+ * 确保所有登录安全相关字段都存在
+ */
+async function ensureAllLoginSecurityFields(): Promise<void> {
+  const fieldsToCheck = ['login_fail_count', 'locked_until', 'last_password_change', 'last_login_at', 'last_login_ip'];
+  const columnSchemas: { [key: string]: string } = {
+    'login_fail_count': 'ALTER TABLE users ADD COLUMN login_fail_count INT DEFAULT 0 COMMENT "登录失败次数" AFTER status;',
+    'locked_until': 'ALTER TABLE users ADD COLUMN locked_until TIMESTAMP NULL COMMENT "账号锁定截止时间" AFTER login_fail_count;',
+    'last_password_change': 'ALTER TABLE users ADD COLUMN last_password_change TIMESTAMP NULL COMMENT "最后密码修改时间" AFTER locked_until;',
+    'last_login_at': 'ALTER TABLE users ADD COLUMN last_login_at TIMESTAMP NULL COMMENT "最后登录时间" AFTER last_password_change;',
+    'last_login_ip': 'ALTER TABLE users ADD COLUMN last_login_ip VARCHAR(45) COMMENT "最后登录IP" AFTER last_login_at;'
+  };
+
+  console.log('\n>>> 检查并补充所有登录安全字段...');
+
+  for (const fieldName of fieldsToCheck) {
+    try {
+      // 检查字段是否存在
+      const checkResult: any = await query(
+        `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = ?`,
+        [fieldName]
+      );
+
+      if (!checkResult || checkResult.length === 0) {
+        console.log(`>>> 字段 ${fieldName} 不存在，正在添加...`);
+        try {
+          await query(columnSchemas[fieldName]);
+          console.log(`>>> 字段 ${fieldName} 添加成功！`);
+        } catch (addErr) {
+          // 如果字段已存在，会捕获 Duplicate column name 错误，这是正常的
+          const addErrMsg = addErr instanceof Error ? addErr.message : String(addErr);
+          if (addErrMsg.includes('Duplicate column name')) {
+            console.log(`>>> 字段 ${fieldName} 已存在（忽略添加错误）`);
+          } else {
+            console.error(`>>> 添加字段 ${fieldName} 失败:`, addErr);
+          }
+        }
+      } else {
+        console.log(`>>> 字段 ${fieldName} 已存在`);
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.log(`>>> 字段 ${fieldName} 检查结果: ${errorMsg}`);
+    }
+  }
+}
+
+/**
+ * 修复重复字段错误 (ER_DUP_FIELDNAME)
+ */
+async function repairDuplicateColumn(error: DBError): Promise<RepairResult> {
+  console.log('\n>>> 检测到重复字段错误');
+  
+  return {
+    success: false,
+    message: '检测到重复字段定义，这通常是SQL语句错误导致的，无法自动修复。请检查SQL语句。'
+  };
+}
+
+/**
+ * 修复SQL语法错误 (ER_PARSE_ERROR)
+ */
+async function repairSyntaxError(error: DBError, sql: string): Promise<RepairResult> {
+  console.log('\n>>> 检测到SQL语法错误');
+  console.log('>>> SQL:', sql);
+  
+  // 提供一些常见的语法错误建议
+  const suggestions: string[] = [];
+
+  if (sql.includes('LIMIT') && !sql.includes('?')) {
+    suggestions.push('- LIMIT 子句可能缺少参数占位符 ?');
+  }
+  
+  if (sql.includes('WHERE') && sql.includes('=') && !sql.includes('?')) {
+    suggestions.push('- WHERE 条件可能缺少参数占位符 ?');
+  }
+
+  if (sql.match(/,\s*FROM/)) {
+    suggestions.push('- SELECT 子句可能有多余的逗号');
+  }
+
+  if (sql.match(/WHERE\s+AND/)) {
+    suggestions.push('- WHERE 后直接跟 AND 是错误的');
+  }
+
+  return {
+    success: false,
+    message: 'SQL语法错误，无法自动修复。' + 
+             (suggestions.length > 0 ? '\n\n可能的问题:\n' + suggestions.join('\n') : '')
+  };
+}
+
+/**
+ * 清理过期的token黑名单
+ */
+export async function cleanupExpiredTokens(): Promise<void> {
+  try {
+    const result: any = await query(
+      'DELETE FROM token_blacklist WHERE expires_at < NOW()'
+    );
+    if (result.affectedRows > 0) {
+      console.log(`清理了 ${result.affectedRows} 条过期的token黑名单记录`);
+    }
+  } catch (error) {
+    console.error('清理过期token失败:', error);
+  }
+}
+
+/**
+ * 清理过期的会话
+ */
+export async function cleanupExpiredSessions(): Promise<void> {
+  try {
+    const result: any = await query(
+      'DELETE FROM sessions WHERE expires_at < NOW()'
+    );
+    if (result.affectedRows > 0) {
+      console.log(`清理了 ${result.affectedRows} 条过期的会话记录`);
+    }
+  } catch (error) {
+    console.error('清理过期会话失败:', error);
+  }
+}
+
+/**
+ * 检查数据库健康状态
+ */
+export async function checkDatabaseHealth(): Promise<{
+  healthy: boolean;
+  issues: string[];
+  suggestions: string[];
+}> {
+  const issues: string[] = [];
+  const suggestions: string[] = [];
+
+  try {
+    // 1. 检查必需的表是否存在
+    const requiredTables = [
+      'divination_records', 'trigrams', 'gua_data',
+      'users', 'invite_codes', 'sessions', 
+      'token_blacklist', 'audit_logs'
+    ];
+
+    for (const table of requiredTables) {
+      const result: any = await query(
+        `SELECT COUNT(*) as count FROM information_schema.tables
+         WHERE table_schema = DATABASE() AND table_name = ?`,
+        [table]
+      );
+      
+      if (result[0].count === 0) {
+        issues.push(`表 ${table} 不存在`);
+        suggestions.push(`运行 SQL: CREATE TABLE ${table} ...`);
+      }
+    }
+
+    // 2. 检查数据库连接池状态
+    // MySQL2 连接池的统计信息
+    // 注意: pool 对象可能没有直接暴露这些属性，这里仅作示例
+    // console.log('连接池状态:', pool);
+
+    // 3. 检查是否有锁表情况
+    const locks: any = await query('SHOW OPEN TABLES WHERE In_use > 0');
+    if (locks.length > 0) {
+      issues.push(`检测到 ${locks.length} 个表被锁定`);
+      suggestions.push('考虑优化查询或检查长事务');
+    }
+
+    return {
+      healthy: issues.length === 0,
+      issues,
+      suggestions
+    };
+  } catch (error) {
+    return {
+      healthy: false,
+      issues: [`数据库健康检查失败: ${error instanceof Error ? error.message : String(error)}`],
+      suggestions: ['检查数据库连接配置', '确认MySQL服务正在运行']
+    };
+  }
+}

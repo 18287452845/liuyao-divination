@@ -43,6 +43,20 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return data;
 }
 
+// ==================== 认证相关API ====================
+
+export const authApi = {
+  // 修改密码
+  changePassword: async (data: { oldPassword: string; newPassword: string }) => {
+    const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse<{ success: boolean; message: string }>(response);
+  },
+};
+
 // ==================== 用户管理API ====================
 
 export interface User {

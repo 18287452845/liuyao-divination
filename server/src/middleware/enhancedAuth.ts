@@ -42,7 +42,7 @@ export async function checkLoginAttempts(
 
     // 查询用户登录失败次数和锁定状态
     const user: any = await queryOne(
-      'SELECT id, login_attempts, locked_until FROM users WHERE username = ?',
+      'SELECT id, login_fail_count, locked_until FROM users WHERE username = ?',
       [username]
     );
 
@@ -98,13 +98,13 @@ export async function handleLoginFailure(
 
     // 查询用户
     const user: any = await queryOne(
-      'SELECT id, login_attempts FROM users WHERE username = ?',
+      'SELECT id, login_fail_count FROM users WHERE username = ?',
       [username]
     );
 
     if (user) {
       // 增加登录失败次数
-      const newAttempts = (user.login_attempts || 0) + 1;
+      const newAttempts = (user.login_fail_count || 0) + 1;
       let lockedUntil = null;
 
       // 如果失败次数达到5次，锁定账号24小时
@@ -114,7 +114,7 @@ export async function handleLoginFailure(
         lockedUntil = lockDate;
 
         await query(
-          'UPDATE users SET login_attempts = ?, locked_until = ? WHERE id = ?',
+          'UPDATE users SET login_fail_count = ?, locked_until = ? WHERE id = ?',
           [newAttempts, lockedUntil, user.id]
         );
 
@@ -136,7 +136,7 @@ export async function handleLoginFailure(
         return;
       } else {
         await query(
-          'UPDATE users SET login_attempts = ? WHERE id = ?',
+          'UPDATE users SET login_fail_count = ? WHERE id = ?',
           [newAttempts, user.id]
         );
 
@@ -208,8 +208,7 @@ export async function enhancedAuthenticate(
     const payload = verifyResult.payload!;
 
     // 检查token是否在黑名单中
-    const isBlacklisted = await isTokenBlacklisted(token);
-    if (isBlacklisted) {
+    if (payload.jti && await isTokenBlacklisted(payload.jti)) {
       res.status(401).json({
         success: false,
         message: '认证令牌已失效',
@@ -299,7 +298,7 @@ export async function enhancedAuthenticate(
 export async function resetLoginAttempts(userId: string): Promise<void> {
   try {
     await query(
-      'UPDATE users SET login_attempts = 0, locked_until = NULL WHERE id = ?',
+      'UPDATE users SET login_fail_count = 0, locked_until = NULL WHERE id = ?',
       [userId]
     );
   } catch (error) {

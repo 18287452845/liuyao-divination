@@ -192,11 +192,13 @@ export async function manualBlacklistToken(
     // 实际实现中需要使用JWT库来解析
     const blacklistId = uuidv4();
     
+    const expiresAt = new Date(Date.now() + 3600 * 1000); // 1 hour
+    
     await query(
       `INSERT INTO token_blacklist (
         id, token_jti, token_type, expires_at, reason
-      ) VALUES (?, ?, 'access', DATE_ADD(NOW(), INTERVAL 1 HOUR), ?)`,
-      [blacklistId, tokenJti, reason]
+      ) VALUES (?, ?, 'access', ?, ?)`,
+      [blacklistId, tokenJti, expiresAt, reason]
     );
 
     // 记录管理员操作日志

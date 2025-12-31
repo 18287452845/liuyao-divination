@@ -7,9 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a traditional Chinese Liuyao (六爻) divination system combining modern web technologies with AI-powered interpretation. The system provides three divination methods (time-based, number-based, manual coin-tossing simulation), generates complete hexagram layouts, and integrates with DeepSeek API for intelligent analysis.
 
 **Tech Stack:**
-- Frontend: React 18 + TypeScript + Vite + Tailwind CSS
+- Frontend: React 18 + TypeScript + Vite + Tailwind CSS + React Router v6
 - Backend: Node.js + Express + TypeScript
-- Database: MySQL 5.7+ (or SQLite for development)
+- Database: MySQL 5.7+
+- Authentication: JWT-based auth with bcrypt password hashing
 - AI: DeepSeek API for hexagram interpretation
 
 ## Development Commands
@@ -45,6 +46,17 @@ cd server && npm run build
 ```
 
 ### Database Setup
+
+**Using Docker (Recommended):**
+```bash
+# Start MySQL and auto-initialize database
+docker-compose up -d mysql db-init
+
+# Check initialization status
+docker-compose logs db-init
+```
+
+**Manual Setup:**
 ```bash
 # MySQL initialization (Windows)
 cd server && setup_mysql.bat
@@ -52,13 +64,12 @@ cd server && setup_mysql.bat
 # MySQL initialization (Unix/Mac)
 cd server && chmod +x setup_mysql.sh && ./setup_mysql.sh
 
-# Or manually
-mysql -u root -p123456 < server/sql/init_database.sql
-mysql -u root -p123456 < server/sql/insert_data.sql
-mysql -u root -p123456 < server/sql/test_data.sql
+# Or manually run SQL files in order
+mysql -u root -p < server/sql/00_init_complete.sql
+mysql -u root -p < server/sql/01_init_data.sql
 ```
 
-**Note:** SQLite is used by default in development mode and auto-initializes on first run.
+**Note:** Ensure the MySQL service or Docker container is healthy before starting the backend. The database includes authentication, permissions, user management, and admin features.
 
 ## Architecture
 
@@ -101,20 +112,58 @@ lt/
   - `bian_gua` (changing hexagram)
   - `decoration` (all hexagram attributes)
   - `ai_analysis` (AI interpretation text)
+  - `user_id` (user data isolation)
+  - Verification feedback fields (`is_verified`, `actual_result`, `accuracy_rating`, etc.)
+
+**Authentication & Authorization Tables:**
+- `users` - User accounts with password hashing, status, API keys, login security
+- `roles` - Role-based access control (RBAC)
+- `permissions` - Granular permissions system
+- `user_roles` - Many-to-many user-role relationships
+- `role_permissions` - Many-to-many role-permission relationships
+
+**Supporting Tables:**
 - `trigrams` - Eight basic trigrams reference data
 - `gua_data` - 64 hexagrams with names and traditional texts
+- `login_logs` - User login history and security tracking
+- `operation_logs` - User activity audit trail
+- `user_sessions` - Active session management
+- `invite_codes` - Invitation code system for user registration
+- `audit_logs` - Comprehensive system audit logs
 
 **Important:** Hexagram data is stored as JSON to preserve complex nested structures. When querying, parse JSON fields on the backend before sending to frontend.
 
 ### Frontend Architecture
 
 **Page Components (`client/src/pages/`):**
+- `LoginPage.tsx` - User authentication page
 - `DivinationPage.tsx` - Main divination interface with method selection
 - `PaidianPage.tsx` - Hexagram display page (排盘 = layout/arrangement)
 - `JieguaPage.tsx` - AI interpretation page (解卦 = interpretation)
 - `HistoryPage.tsx` - Historical records browser
+- `ToolsPage.tsx` - Various utilities (calendar conversion, branch relations, etc.)
+- `ApiKeySettingsPage.tsx` - User's personal DeepSeek API key management
+- `ChangePasswordPage.tsx` - Password change functionality
 
-**Routing:** Uses React Router v6. Main routes configured in `App.tsx`.
+**Admin Pages (`client/src/pages/admin/`):**
+- `DashboardPage.tsx` - Admin dashboard with statistics
+- `UserManagementPage.tsx` - User CRUD operations
+- `RoleManagementPage.tsx` - Role and permission management
+- `LoginLogsPage.tsx` - Login history and security monitoring
+- `SessionManagementPage.tsx` - Active session management
+- `InviteManagementPage.tsx` - Invitation code management
+
+**Routing:** Uses React Router v6. Main routes configured in `App.tsx`:
+- Public route: `/login`
+- Protected routes (require authentication): All other pages
+- Admin routes (require admin permissions): `/admin/*`
+
+**Authentication Flow:**
+1. User logs in via LoginPage → JWT token stored in localStorage
+2. `AuthContext` provides authentication state globally
+3. `ProtectedRoute` component guards authenticated routes
+4. `authenticate` middleware on backend validates JWT tokens
+5. `requirePermissions` and `requireRoles` middleware enforce authorization
 
 **Data Flow:**
 1. User performs divination → POST `/api/divination`
@@ -123,21 +172,70 @@ lt/
 4. User clicks "AI Analysis" → POST `/api/ai/analyze` (SSE stream)
 5. Save to history → available in HistoryPage
 
+### Backend Architecture
+
+**Route Organization (`server/src/routes/index.ts`):**
+All API routes are centrally defined and protected by authentication/authorization middleware:
+
+**Route Categories:**
+- `/api/auth/*` - Authentication (login, register, logout, change password)
+- `/api/divination/*` - Divination operations (create, simulate)
+- `/api/records/*` - Record management (CRUD, verification feedback)
+- `/api/ai/*` - AI analysis (streaming SSE)
+- `/api/tools/*` - Utility functions (calendar, branch relations, gua lookup)
+- `/api/users/*` - User management (admin only)
+- `/api/roles/*` - Role management (admin only)
+- `/api/permissions/*` - Permission management (admin only)
+- `/api/logs/*` - Log viewing and export (admin only)
+- `/api/sessions/*` - Session management
+- `/api/security/*` - Security operations (2FA, account locking)
+- `/api/invite-codes/*` - Invitation code management (admin only)
+- `/api/audit-logs/*` - Audit log viewing (admin only)
+- `/api/user/api-key/*` - Personal API key management
+
+**Middleware Stack:**
+1. `authenticate` - Validates JWT token, attaches `req.user`
+2. `requirePermissions(['permission:action'])` - Checks user has specific permissions
+3. `requireRoles(['roleName'])` - Checks user has specific roles
+4. Controllers execute business logic
+5. Responses sent to client
+
+**Controllers (`server/src/controllers/`):**
+- `authController.ts` - Authentication and user profile
+- `divinationController.ts` - Divination logic and records
+- `aiController.ts` - AI analysis with SSE streaming
+- `userController.ts` - User CRUD operations
+- `roleController.ts` - Role and permission management
+- `logController.ts` - Login and operation logs
+- `sessionController.ts` - Session management
+- `securityController.ts` - Security features
+- `inviteController.ts` - Invitation code system
+- `auditController.ts` - Audit logging
+- `toolsController.ts` - Utility functions
+
 ## Environment Configuration
 
 ### Required: DeepSeek API Key
 
 Create `server/.env` from `server/.env.example`:
 ```env
+# DeepSeek API Configuration (Required)
 DEEPSEEK_API_KEY=sk-your-actual-key-here
 DEEPSEEK_API_URL=https://api.deepseek.com
+
+# JWT Configuration (Required for Authentication)
+JWT_SECRET=your-secure-random-secret-key
+JWT_EXPIRES_IN=7d
+JWT_REFRESH_EXPIRES_IN=30d
 ```
 
 **Getting a key:** See `DEEPSEEK_CONFIG.md` for detailed instructions.
 
+**Note:** Users can optionally configure their own DeepSeek API keys via the API Settings page, which takes precedence over the system default key.
+
 ### Database Configuration
 
-Default uses SQLite for development. For MySQL:
+Configure MySQL credentials (Docker Compose exposes the `mysql` host by default):
 ```env
 DB_HOST=localhost
 DB_PORT=3306
@@ -147,6 +245,35 @@ DB_NAME=liuyao_db
 ```
 
 ## Key Technical Concepts
+
+### Authentication & Authorization
+
+**JWT-Based Authentication:**
+- Login generates access token (default 7 days) and refresh token (default 30 days)
+- Tokens stored in localStorage on frontend
+- Backend middleware (`authenticate`) validates tokens on protected routes
+
+**Role-Based Access Control (RBAC):**
+- Three-tier permission model: Users → Roles → Permissions
+- Middleware functions: `requirePermissions(['permission:action'])`, `requireRoles(['roleName'])`
+- Default roles: Admin (full access), User (basic divination access)
+- Granular permissions for divination, users, roles, logs, sessions, etc.
+
+**Permission Categories:**
+- `divination:*` - Divination operations (create, view, delete, aiAnalysis)
+- `user:*` - User management (view, create, edit, delete, status)
+- `role:*` - Role management (view, create, edit, delete, assignPermission)
+- `permission:*` - Permission viewing
+- `log:*` - Log management (viewLogin, viewOperation, delete, export)
+- `session:*` - Session management (view, manage)
+- `security:*` - Security operations (view, lockUnlock, forcePasswordReset, auditReport)
+- `invite:*` - Invite code management
+- `audit:*` - Audit log operations
+
+**User Data Isolation:**
+- Regular users can only access their own divination records
+- Admins can access all records
+- Implemented via `user_id` field in `divination_records` table
 
 ### Najia (纳甲) System
 Traditional method of assigning heavenly stems to hexagram lines:
@@ -237,35 +364,112 @@ All constant mappings are centralized in `server/src/utils/constants.ts`:
 
 **Reference:** `server/src/utils/najia_reference.md` contains traditional reference material.
 
+## Admin Features
+
+The system includes comprehensive admin functionality accessible at `/admin`:
+
+**User Management:**
+- Create, edit, delete users
+- Enable/disable user accounts
+- Reset user passwords
+- View user details and roles
+
+**Role & Permission Management:**
+- Create custom roles with specific permissions
+- Assign permissions to roles
+- Assign roles to users
+- Enable/disable roles
+
+**Session Management:**
+- View all active sessions across users
+- Invalidate specific sessions
+- Force logout users
+- Session statistics and monitoring
+
+**Login & Activity Logs:**
+- View login history with IP addresses and user agents
+- Track user operations (create, update, delete actions)
+- Export logs for audit purposes
+- Filter and search log entries
+
+**Invite Code System:**
+- Generate invitation codes for user registration
+- Set usage limits and expiration dates
+- Track invite code usage
+- Batch create codes
+
+**Security Features:**
+- Failed login attempt tracking
+- Account lockout after multiple failures
+- Password change enforcement
+- API key management (system and user-level)
+
+## Deployment
+
+**Docker Deployment (Recommended):**
+```bash
+# 1. Configure environment
+cp .env.example .env
+# Edit .env: Set JWT_SECRET, MYSQL passwords, DEEPSEEK_API_KEY
+
+# 2. Start all services
+docker-compose up -d
+
+# 3. Check logs
+docker-compose logs -f
+
+# Access: http://localhost (frontend) and http://localhost:5000 (backend)
+```
+
+See `DOCKER_DEPLOYMENT.md` and `doc/DEPLOYMENT.md` for detailed deployment instructions.
+
 ## Testing
 
 ### Test Data
-Database includes 5 pre-seeded records covering all divination methods:
+Database initialization includes default admin user and test data:
 ```bash
-mysql -u root -p123456 < server/sql/test_data.sql
+# Default admin credentials (for testing only - change in production!)
+Username: admin
+Password: admin123
+
+# Regular test user
+Username: testuser
+Password: test123
 ```
+
+**IMPORTANT:** Change default passwords immediately in production environments.
 
 ### Manual Testing Flow
 1. Start development servers: `npm run dev`
-2. Navigate to http://localhost:3000
-3. Perform divination using any method
-4. Verify hexagram display shows all attributes correctly
-5. Test AI analysis (requires valid DeepSeek API key)
-6. Check history page for saved records
+2. Navigate to http://localhost:3000/login
+3. Log in with test credentials
+4. Perform divination using any method
+5. Verify hexagram display shows all attributes correctly
+6. Test AI analysis (requires valid DeepSeek API key)
+7. Check history page for saved records
+8. (Admin only) Access `/admin` to test admin features
 
 ### API Testing
 Use tools like Postman or curl:
 ```bash
-# Create divination
+# Login
+curl -X POST http://localhost:5000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
+
+# Create divination (requires JWT token)
 curl -X POST http://localhost:5000/api/divination \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{"question":"Test","method":"time"}'
 
 # Get records
-curl http://localhost:5000/api/records
+curl http://localhost:5000/api/records \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 
 # Simulate coin toss
-curl http://localhost:5000/api/divination/simulate
+curl http://localhost:5000/api/divination/simulate \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
 ## Important Notes
@@ -291,7 +495,74 @@ Uses Tailwind CSS with traditional Chinese color scheme:
 
 Custom colors configured in `client/tailwind.config.js`.
 
+## Security Best Practices
+
+### Production Deployment Checklist
+1. **Change default passwords** immediately:
+   - Default admin password (`admin123`)
+   - MySQL root password
+   - All test user passwords
+
+2. **Generate strong JWT secret**:
+   ```bash
+   # Generate a random 64-character secret
+   node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+   ```
+   Set in `.env`: `JWT_SECRET=your-generated-secret`
+
+3. **Secure environment variables**:
+   - Never commit `.env` files to version control
+   - Use different secrets for dev/staging/production
+   - Restrict `.env` file permissions: `chmod 600 .env`
+
+4. **Database security**:
+   - Use strong MySQL passwords
+   - Don't expose MySQL port publicly (Docker: remove port mapping in production)
+   - Regular backups of `liuyao_db`
+   - Enable MySQL audit logging for sensitive operations
+
+5. **API key protection**:
+   - Store DeepSeek API keys encrypted in database
+   - Don't expose API keys in client-side code
+   - Monitor API usage and set rate limits
+
+6. **Session management**:
+   - Regularly clean expired sessions
+   - Implement session timeout
+   - Use HTTPS in production (prevents token interception)
+
+7. **Input validation**:
+   - Backend validates all inputs (already implemented)
+   - Frontend provides additional UX validation
+   - Sanitize user-generated content to prevent XSS
+
+8. **CORS configuration**:
+   - Restrict allowed origins in production
+   - Don't use `*` wildcard for CORS
+   - Configure in `server/src/index.ts`
+
+### Login Security Features
+- Failed login attempt tracking (max 5 attempts)
+- Account lockout after excessive failures (30 minutes)
+- Login history with IP and user agent tracking
+- Session invalidation on password change
+- Force logout capabilities for admins
+
 ## Troubleshooting
+
+### Authentication Issues
+**Problem:** "Invalid token" or "Token expired" errors
+**Solutions:**
+1. Check JWT token is being sent in Authorization header: `Bearer YOUR_TOKEN`
+2. Verify JWT_SECRET matches between .env and what was used to generate tokens
+3. Token may have expired - try logging in again
+4. Clear localStorage and re-login if token is corrupted
+
+**Problem:** "Insufficient permissions"
+**Solutions:**
+1. Check user's role has required permissions in database
+2. Verify permission strings match exactly (e.g., `divination:create`)
+3. Admin operations require both authentication AND admin permissions
 
 ### Port Already in Use
 Default ports: 3000 (frontend), 5000 (backend)
@@ -302,12 +573,20 @@ Change in:
 
 ### MySQL Connection Issues
 Check:
-1. MySQL service is running
+1. MySQL service is running (or Docker container: `docker-compose ps mysql`)
 2. Credentials in `.env` match your MySQL setup
 3. Database `liuyao_db` exists (created by init script)
 4. Character set is `utf8mb4`
+5. Container logs show `ready for connections`: `docker-compose logs mysql`
+6. Network connectivity between backend and MySQL (Docker: use host `mysql`, not `localhost`)
 
-Alternative: Use SQLite (default) by not configuring MySQL env vars.
+### Database Initialization Issues
+**Problem:** Tables not created or missing data
+**Solutions:**
+1. Check if `00_init_complete.sql` ran successfully
+2. For Docker: Check `db-init` container logs: `docker-compose logs db-init`
+3. Manually run SQL: `docker-compose exec mysql mysql -u root -pPASSWORD liuyao_db < /sql/00_init_complete.sql`
+4. Verify `DB_RESET_ON_STARTUP=true` in `.env` for auto-reset on startup (development only)
 
 ### DeepSeek API Failures
 Common causes:
@@ -326,9 +605,34 @@ Verify:
 
 ## Additional Documentation
 
-- `README.md` - Project overview and basic setup
-- `QUICKSTART.md` - Quick start guide
-- `PROJECT_DOCUMENTATION.md` - Comprehensive technical documentation
+- `README.md` - Project overview and basic setup (Chinese)
+- `QUICKSTART.md` - Quick start guide (if exists)
+- `PROJECT_DOCUMENTATION.md` - Comprehensive technical documentation (if exists)
 - `DEEPSEEK_CONFIG.md` - DeepSeek API configuration guide
-- `server/sql/README.md` - Database schema documentation
+- `DOCKER_DEPLOYMENT.md` - Docker deployment guide (recommended for production)
+- `doc/DEPLOYMENT.md` - Comprehensive deployment documentation
+- `doc/DEPLOYMENT_CHECKLIST.md` - Pre-deployment checklist
+- `server/sql/README.md` - Database schema documentation (if exists)
 - `server/src/utils/najia_reference.md` - Traditional Najia reference
+
+## Project Status
+
+**Recent Additions:**
+- ✅ Complete authentication and authorization system (JWT + RBAC)
+- ✅ Admin dashboard with user, role, and permission management
+- ✅ Session management and login security
+- ✅ Audit logging and activity tracking
+- ✅ Invitation code system
+- ✅ User data isolation (users can only see their own records)
+- ✅ Password change functionality
+- ✅ Personal API key management
+- ✅ Verification feedback system for divination records
+- ✅ Docker deployment support with auto-initialization
+
+**Core Features:**
+- Three divination methods (time, number, manual)
+- Complete Liuyao hexagram generation with traditional attributes
+- AI-powered interpretation via DeepSeek API
+- Historical record management
+- Utility tools (calendar conversion, branch relations, hexagram lookup)
+

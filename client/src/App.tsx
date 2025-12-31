@@ -9,7 +9,14 @@ import JieguaPage from './pages/JieguaPage';
 import HistoryPage from './pages/HistoryPage';
 import ToolsPage from './pages/ToolsPage';
 import ApiKeySettingsPage from './pages/ApiKeySettingsPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 import InviteManagementPage from './pages/admin/InviteManagementPage';
+import AdminLayout from './components/admin/AdminLayout';
+import DashboardPage from './pages/admin/DashboardPage';
+import UserManagementPage from './pages/admin/UserManagementPage';
+import RoleManagementPage from './pages/admin/RoleManagementPage';
+import LoginLogsPage from './pages/admin/LoginLogsPage';
+import SessionManagementPage from './pages/admin/SessionManagementPage';
 import './styles/index.css';
 
 // 主布局组件（包含导航栏的页面）
@@ -33,7 +40,8 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 <Link to="/" className="text-gray-700 hover:text-primary font-medium transition-colors">起卦</Link>
                 <Link to="/history" className="text-gray-700 hover:text-primary font-medium transition-colors">历史记录</Link>
                 <Link to="/tools" className="text-gray-700 hover:text-primary font-medium transition-colors">工具箱</Link>
-                <Link to="/settings/api-key" className="text-gray-700 hover:text-primary font-medium transition-colors">设置</Link>
+                <Link to="/settings/api-key" className="text-gray-700 hover:text-primary font-medium transition-colors">API设置</Link>
+                <Link to="/settings/password" className="text-gray-700 hover:text-primary font-medium transition-colors">修改密码</Link>
 
                 {/* 管理员菜单 */}
                 {isAdmin() && (
@@ -149,33 +157,45 @@ const App: React.FC = () => {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/settings/password"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <ChangePasswordPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
 
           {/* 管理后台路由 - 需要管理员权限 */}
           <Route
             path="/admin"
             element={
               <ProtectedRoute requireRole="admin">
-                <MainLayout>
-                  <div className="container mx-auto px-4 py-8">
-                    <div className="bg-white rounded-lg shadow-md p-8 text-center">
-                      <h2 className="text-2xl font-bold mb-4">管理后台</h2>
-                      <div className="flex flex-wrap gap-4 justify-center">
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 opacity-50 cursor-not-allowed">
-                          <h3 className="font-semibold mb-2">用户管理</h3>
-                          <p className="text-sm text-gray-600">开发中...</p>
-                        </div>
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 opacity-50 cursor-not-allowed">
-                          <h3 className="font-semibold mb-2">角色管理</h3>
-                          <p className="text-sm text-gray-600">开发中...</p>
-                        </div>
-                        <Link to="/admin/invites" className="bg-purple-50 border border-purple-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                          <h3 className="font-semibold mb-2 text-purple-700">邀请码管理</h3>
-                          <p className="text-sm text-gray-600">创建、管理注册邀请码</p>
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-                </MainLayout>
+                <AdminLayout>
+                  <DashboardPage />
+                </AdminLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <ProtectedRoute requireRole="admin">
+                <AdminLayout>
+                  <UserManagementPage />
+                </AdminLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/roles"
+            element={
+              <ProtectedRoute requireRole="admin">
+                <AdminLayout>
+                  <RoleManagementPage />
+                </AdminLayout>
               </ProtectedRoute>
             }
           />
@@ -183,9 +203,29 @@ const App: React.FC = () => {
             path="/admin/invites"
             element={
               <ProtectedRoute requireRole="admin">
-                <MainLayout>
+                <AdminLayout>
                   <InviteManagementPage />
-                </MainLayout>
+                </AdminLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/login-logs"
+            element={
+              <ProtectedRoute requireRole="admin">
+                <AdminLayout>
+                  <LoginLogsPage />
+                </AdminLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/sessions"
+            element={
+              <ProtectedRoute requireRole="admin">
+                <AdminLayout>
+                  <SessionManagementPage />
+                </AdminLayout>
               </ProtectedRoute>
             }
           />

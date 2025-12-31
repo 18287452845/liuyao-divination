@@ -136,7 +136,6 @@ NODE_ENV=development
 DEEPSEEK_API_KEY=sk-xxxxx
 
 # 数据库 (MySQL)
-DB_TYPE=mysql
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root

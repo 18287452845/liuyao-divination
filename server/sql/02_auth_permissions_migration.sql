@@ -1,7 +1,8 @@
 -- ===================================================================
 -- 六爻排盘系统 - 认证权限功能完善迁移脚本
 -- 版本: 1.0.0 -> 1.1.0
--- 新增功能：审计日志、邀请码管理、Token黑名单、密码策略等
+-- 新增功能：审计日志、邀请码管理、Token黑名单、密码安全字段
+-- 目标: 兼容 MySQL 5.7+，与 02_auth_permissions_enhancement.sql 可顺序执行
 -- ===================================================================
 
 USE liuyao_db;
@@ -38,7 +39,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 -- ====================================
 CREATE TABLE IF NOT EXISTS invite_codes (
   id VARCHAR(50) PRIMARY KEY COMMENT '邀请码ID',
-  code VARCHAR(50) NOT UNIQUE COMMENT '邀请码',
+  code VARCHAR(50) NOT NULL COMMENT '邀请码',
   name VARCHAR(100) COMMENT '邀请码名称',
   description TEXT COMMENT '邀请码描述',
   max_uses INT DEFAULT 1 COMMENT '最大使用次数',
@@ -49,54 +50,136 @@ CREATE TABLE IF NOT EXISTS invite_codes (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 
-  INDEX idx_code (code),
+  UNIQUE KEY uk_invite_code (code),
   INDEX idx_status (status),
   INDEX idx_expires_at (expires_at),
+  INDEX idx_created_by (created_by),
 
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='邀请码管理表';
 
 -- ====================================
--- 3. 创建Token黑名单表 (token_blacklist)
+-- 3. Token黑名单表 (token_blacklist)
+-- （如果增强脚本已经创建，这里不会覆盖）
 -- ====================================
 CREATE TABLE IF NOT EXISTS token_blacklist (
   id VARCHAR(50) PRIMARY KEY COMMENT '黑名单记录ID',
   token_jti VARCHAR(255) NOT NULL COMMENT 'Token JWT ID',
   user_id VARCHAR(50) COMMENT '用户ID',
   token_type VARCHAR(20) NOT NULL COMMENT 'Token类型: access/refresh',
-  expires_at TIMESTAMP NOT NULL COMMENT 'Token过期时间',
-  reason VARCHAR(100) COMMENT '加入黑名单原因',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  expires_at TIMESTAMP NULL COMMENT 'Token过期时间',
+  reason VARCHAR(255) COMMENT '加入黑名单原因',
 
   UNIQUE KEY uk_token_jti (token_jti),
   INDEX idx_user_id (user_id),
   INDEX idx_token_type (token_type),
   INDEX idx_expires_at (expires_at),
+  INDEX idx_created_at (created_at),
 
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Token黑名单表';
 
 -- ====================================
--- 4. 扩展用户表字段
+-- 4. 扩展 users 表字段（按需添加）
 -- ====================================
-ALTER TABLE users 
-ADD COLUMN login_fail_count INT DEFAULT 0 COMMENT '登录失败次数',
-ADD COLUMN locked_until TIMESTAMP NULL COMMENT '账号锁定到期时间',
-ADD COLUMN password_reset_token VARCHAR(255) NULL COMMENT '密码重置令牌',
-ADD COLUMN password_reset_expires TIMESTAMP NULL COMMENT '密码重置令牌过期时间',
-ADD COLUMN last_password_change TIMESTAMP NULL COMMENT '最后密码修改时间',
-ADD COLUMN email_verified BOOLEAN DEFAULT FALSE COMMENT '邮箱是否已验证',
-ADD COLUMN email_verification_token VARCHAR(255) NULL COMMENT '邮箱验证令牌';
 
--- 添加索引
-ALTER TABLE users 
-ADD INDEX idx_login_fail_count (login_fail_count),
-ADD INDEX idx_locked_until (locked_until),
-ADD INDEX idx_password_reset_token (password_reset_token),
-ADD INDEX idx_email_verification_token (email_verification_token);
+-- login_fail_count
+SET @sql = (SELECT IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = 'liuyao_db'
+     AND TABLE_NAME = 'users'
+     AND COLUMN_NAME = 'login_fail_count') > 0,
+  'SELECT "Column already exists" as result;',
+  'ALTER TABLE users ADD COLUMN login_fail_count INT DEFAULT 0 COMMENT "登录失败次数";'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- locked_until
+SET @sql = (SELECT IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = 'liuyao_db'
+     AND TABLE_NAME = 'users'
+     AND COLUMN_NAME = 'locked_until') > 0,
+  'SELECT "Column already exists" as result;',
+  'ALTER TABLE users ADD COLUMN locked_until TIMESTAMP NULL COMMENT "账号锁定到期时间";'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- password_reset_token
+SET @sql = (SELECT IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = 'liuyao_db'
+     AND TABLE_NAME = 'users'
+     AND COLUMN_NAME = 'password_reset_token') > 0,
+  'SELECT "Column already exists" as result;',
+  'ALTER TABLE users ADD COLUMN password_reset_token VARCHAR(255) NULL COMMENT "密码重置令牌";'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- password_reset_expires
+SET @sql = (SELECT IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = 'liuyao_db'
+     AND TABLE_NAME = 'users'
+     AND COLUMN_NAME = 'password_reset_expires') > 0,
+  'SELECT "Column already exists" as result;',
+  'ALTER TABLE users ADD COLUMN password_reset_expires TIMESTAMP NULL COMMENT "密码重置令牌过期时间";'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- last_password_change
+SET @sql = (SELECT IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = 'liuyao_db'
+     AND TABLE_NAME = 'users'
+     AND COLUMN_NAME = 'last_password_change') > 0,
+  'SELECT "Column already exists" as result;',
+  'ALTER TABLE users ADD COLUMN last_password_change TIMESTAMP NULL COMMENT "最后密码修改时间";'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- email_verified
+SET @sql = (SELECT IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = 'liuyao_db'
+     AND TABLE_NAME = 'users'
+     AND COLUMN_NAME = 'email_verified') > 0,
+  'SELECT "Column already exists" as result;',
+  'ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE COMMENT "邮箱是否已验证";'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- email_verification_token
+SET @sql = (SELECT IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = 'liuyao_db'
+     AND TABLE_NAME = 'users'
+     AND COLUMN_NAME = 'email_verification_token') > 0,
+  'SELECT "Column already exists" as result;',
+  'ALTER TABLE users ADD COLUMN email_verification_token VARCHAR(255) NULL COMMENT "邮箱验证令牌";'
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 为现有用户设置最后密码修改时间
+UPDATE users SET last_password_change = created_at WHERE last_password_change IS NULL;
 
 -- ====================================
--- 5. 新增权限数据
+-- 5. 新增权限数据（审计/邀请码/系统/数据）
 -- ====================================
 INSERT INTO permissions (id, permission_name, permission_code, description, module, status) VALUES
 -- 审计管理权限 (3个)
@@ -130,7 +213,7 @@ SELECT
   p.id as permission_id
 FROM roles r
 CROSS JOIN permissions p
-WHERE r.role_code = 'admin' 
+WHERE r.role_code = 'admin'
   AND p.status = 1
   AND p.id IN (
     'perm-audit-001', 'perm-audit-002', 'perm-audit-003',
@@ -145,54 +228,12 @@ ON DUPLICATE KEY UPDATE role_permissions.created_at = role_permissions.created_a
 -- ====================================
 INSERT INTO invite_codes (id, code, name, description, max_uses, status) VALUES
 ('invite-default-001', '1663929970', '默认邀请码', '系统默认邀请码，用于初始用户注册', 1000, 1),
-('invite-admin-001', 'ADMIN_INVITE_2024', '管理员邀请码', '管理员专用邀请码', 50, 1)
+('invite-admin-001', 'ADMININVITE2024', '管理员邀请码', '管理员专用邀请码', 50, 1)
 ON DUPLICATE KEY UPDATE updated_at = CURRENT_TIMESTAMP;
-
--- ====================================
--- 8. 创建清理过期数据的存储过程
--- ====================================
-DELIMITER $$
-
-CREATE PROCEDURE IF NOT EXISTS CleanupExpiredData()
-BEGIN
-  DECLARE EXIT HANDLER FOR SQLEXCEPTION
-  BEGIN
-    ROLLBACK;
-    RESIGNAL;
-  END;
-
-  START TRANSACTION;
-
-  -- 清理过期的Token黑名单记录
-  DELETE FROM token_blacklist WHERE expires_at < NOW();
-
-  -- 清理过期的邀请码
-  UPDATE invite_codes SET status = 0 WHERE expires_at IS NOT NULL AND expires_at < NOW();
-
-  -- 清理90天前的审计日志
-  DELETE FROM audit_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY);
-
-  COMMIT;
-END$$
-
-DELIMITER ;
-
--- ====================================
--- 9. 创建定时清理事件（MySQL 5.1.6+）
--- ====================================
-SET GLOBAL event_scheduler = ON;
-
-CREATE EVENT IF NOT EXISTS event_cleanup_expired_data
-ON SCHEDULE EVERY 1 DAY
-STARTS CURRENT_TIMESTAMP
-DO CALL CleanupExpiredData();
-
--- ====================================
--- 10. 更新现有用户数据
--- ====================================
--- 为现有用户设置最后密码修改时间
-UPDATE users SET last_password_change = created_at WHERE last_password_change IS NULL;
 
 -- ====================================
 -- 迁移完成
 -- ====================================
+SELECT '认证权限功能完善迁移完成!' as message,
+       (SELECT COUNT(*) FROM audit_logs) as audit_logs_count,
+       (SELECT COUNT(*) FROM invite_codes) as invite_codes_count;
