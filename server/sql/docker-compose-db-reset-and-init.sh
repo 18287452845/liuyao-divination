@@ -27,10 +27,9 @@ mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -uroot -p"$MYSQL_ROOT_PASSWORD" -e "DROP
 echo "[db-init] Initializing schema/data from latest SQL files"
 for file in \
   00_init_complete.sql \
-  01_init_data.sql \
   02_auth_permissions_migration.sql \
   02_auth_permissions_enhancement.sql \
-  insert_64_gua_complete.sql; do
+  02_bazi_tables.sql; do
   echo "[db-init] Executing /sql/$file"
   mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -uroot -p"$MYSQL_ROOT_PASSWORD" --default-character-set=utf8mb4 < "/sql/$file"
 done
