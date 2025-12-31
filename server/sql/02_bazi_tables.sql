@@ -206,14 +206,14 @@ ON DUPLICATE KEY UPDATE index_num=VALUES(index_num);
 -- --------------------------------------------
 -- 添加八字相关权限到 permissions 表
 -- --------------------------------------------
-INSERT INTO permissions (name, description, category, created_at) VALUES
+INSERT INTO permissions (permission_name, description, category, created_at) VALUES
   ('bazi:create', '创建八字记录', 'bazi', NOW()),
   ('bazi:view', '查看八字记录', 'bazi', NOW()),
   ('bazi:delete', '删除八字记录', 'bazi', NOW()),
   ('bazi:aiAnalysis', 'AI批注八字', 'bazi', NOW()),
   ('bazi:verify', '验证反馈八字', 'bazi', NOW()),
   ('bazi:export', '导出八字记录', 'bazi', NOW())
-ON DUPLICATE KEY UPDATE name=VALUES(name);
+ON DUPLICATE KEY UPDATE permission_name=VALUES(permission_name);
 
 -- --------------------------------------------
 -- 为默认 'user' 角色分配八字权限
