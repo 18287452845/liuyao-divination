@@ -10,6 +10,10 @@ import HistoryPage from './pages/HistoryPage';
 import ToolsPage from './pages/ToolsPage';
 import ApiKeySettingsPage from './pages/ApiKeySettingsPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
+import BaziInputPage from './pages/BaziInputPage';
+import BaziDisplayPage from './pages/BaziDisplayPage';
+import BaziAiAnalysisPage from './pages/BaziAiAnalysisPage';
+import BaziHistoryPage from './pages/BaziHistoryPage';
 import InviteManagementPage from './pages/admin/InviteManagementPage';
 import AdminLayout from './components/admin/AdminLayout';
 import DashboardPage from './pages/admin/DashboardPage';
@@ -39,6 +43,8 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               <div className="hidden md:flex items-center gap-6">
                 <Link to="/" className="text-gray-700 hover:text-primary font-medium transition-colors">起卦</Link>
                 <Link to="/history" className="text-gray-700 hover:text-primary font-medium transition-colors">历史记录</Link>
+                <Link to="/bazi" className="text-gray-700 hover:text-primary font-medium transition-colors">八字批命</Link>
+                <Link to="/bazi/history" className="text-gray-700 hover:text-primary font-medium transition-colors">八字记录</Link>
                 <Link to="/tools" className="text-gray-700 hover:text-primary font-medium transition-colors">工具箱</Link>
                 <Link to="/settings/api-key" className="text-gray-700 hover:text-primary font-medium transition-colors">API设置</Link>
                 <Link to="/settings/password" className="text-gray-700 hover:text-primary font-medium transition-colors">修改密码</Link>
@@ -163,6 +169,48 @@ const App: React.FC = () => {
               <ProtectedRoute>
                 <MainLayout>
                   <ChangePasswordPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* 八字批命路由 */}
+          <Route
+            path="/bazi"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <BaziInputPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/bazi/display/:id"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <BaziDisplayPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/bazi/ai-analysis/:id"
+            element={
+              <ProtectedRoute requirePermission="divination:aiAnalysis">
+                <MainLayout>
+                  <BaziAiAnalysisPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/bazi/history"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <BaziHistoryPage />
                 </MainLayout>
               </ProtectedRoute>
             }

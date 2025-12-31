@@ -4,12 +4,11 @@
  */
 
 import jwt from 'jsonwebtoken';
-import { v4 as uuidv4 } from 'uuid';
 
 // JWT配置
-const JWT_SECRET: string = process.env.JWT_SECRET || 'liuyao-secret-key-change-in-production';
-const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '7d'; // 默认7天
-const JWT_REFRESH_EXPIRES_IN: string = process.env.JWT_REFRESH_EXPIRES_IN || '30d'; // 刷新token 30天
+const JWT_SECRET = process.env.JWT_SECRET || 'liuyao-secret-key-change-in-production';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d'; // 默认7天
+const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '30d'; // 刷新token 30天
 
 /**
  * Token载荷接口
@@ -18,9 +17,6 @@ export interface TokenPayload {
   userId: string;
   username: string;
   roles?: string[];
-  jti?: string; // JWT ID，用于黑名单
-  iat?: number; // 签发时间
-  exp?: number; // 过期时间
 }
 
 /**
@@ -38,14 +34,8 @@ export interface VerifyResult {
  * @returns JWT token字符串
  */
 export function generateAccessToken(payload: TokenPayload): string {
-  // jti应该放在payload中，而不是options中
-  const payloadWithJti = {
-    ...payload,
-    jti: uuidv4(),
-  };
-  
-  return jwt.sign(payloadWithJti, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN,
+  return jwt.sign(payload, JWT_SECRET, {
+    expiresIn: JWT_EXPIRES_IN as string,
     issuer: 'liuyao-system',
     audience: 'liuyao-client',
   } as jwt.SignOptions);
@@ -57,14 +47,8 @@ export function generateAccessToken(payload: TokenPayload): string {
  * @returns JWT refresh token字符串
  */
 export function generateRefreshToken(payload: TokenPayload): string {
-  // jti应该放在payload中，而不是options中
-  const payloadWithJti = {
-    ...payload,
-    jti: uuidv4(),
-  };
-  
-  return jwt.sign(payloadWithJti, JWT_SECRET, {
-    expiresIn: JWT_REFRESH_EXPIRES_IN,
+  return jwt.sign(payload, JWT_SECRET, {
+    expiresIn: JWT_REFRESH_EXPIRES_IN as string,
     issuer: 'liuyao-system',
     audience: 'liuyao-client',
   } as jwt.SignOptions);

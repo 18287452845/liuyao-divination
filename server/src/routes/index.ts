@@ -111,6 +111,9 @@ import {
 } from '../controllers/auditController';
 import { authenticate, requirePermissions, requireRoles } from '../middleware/auth';
 
+// 导入八字路由
+import baziRoutes from './baziRoutes';
+
 const router = express.Router();
 
 // 卦象相关路由（需要登录）
@@ -235,5 +238,9 @@ router.get('/audit-logs', authenticate, requirePermissions('audit:view'), getAud
 router.get('/audit-logs/statistics', authenticate, requirePermissions('audit:view'), getAuditLogStatistics);
 router.get('/audit-logs/export', authenticate, requirePermissions('audit:export'), exportAuditLogController);
 router.post('/audit-logs/cleanup', authenticate, requirePermissions('audit:cleanup'), cleanupAuditLogController);
+
+// ==================== 八字批命路由 ====================
+// 将八字相关的所有路由挂载到 /bazi 路径下
+router.use('/bazi', baziRoutes);
 
 export default router;

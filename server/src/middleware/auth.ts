@@ -6,7 +6,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken, extractTokenFromHeader, TokenPayload } from '../utils/jwt';
 import { query } from '../models/database';
-import { isTokenBlacklisted } from '../utils/tokenBlacklist';
 
 /**
  * 扩展Express Request接口，添加用户信息
@@ -56,15 +55,6 @@ export async function authenticate(
     }
 
     const payload = verifyResult.payload!;
-
-    // 检查token是否在黑名单中
-    if (payload.jti && await isTokenBlacklisted(payload.jti)) {
-      res.status(401).json({
-        success: false,
-        message: 'Token已失效，请重新登录',
-      });
-      return;
-    }
 
     // 查询用户信息和角色
     const userResult = await query(

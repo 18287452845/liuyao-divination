@@ -53,8 +53,7 @@ export const createDivination = async (req: Request, res: Response) => {
       method,
       ben_gua: JSON.stringify(benGua),
       bian_gua: bianGua ? JSON.stringify(bianGua) : null,
-      decoration: JSON.stringify(decoration),
-      user_id: req.user?.userId // 添加用户ID
+      decoration: JSON.stringify(decoration)
     };
 
     await DivinationRecordModel.create(record);
@@ -85,21 +84,15 @@ export const simulateShake = async (req: Request, res: Response) => {
   }
 };
 
-// 获取历史记录列表（只返回当前用户的记录）
+// 获取历史记录列表
 export const getRecords = async (req: Request, res: Response) => {
   try {
     const { search, limit = 20, offset = 0 } = req.query;
-    const userId = req.user?.userId;
-
-    if (!userId) {
-      return res.status(401).json({ error: '用户未登录' });
-    }
 
     const records: any = await DivinationRecordModel.findAll(
       search as string,
       Number(limit),
-      Number(offset),
-      userId // 传递用户ID
+      Number(offset)
     );
 
     const formattedRecords = records.map((row: any) => ({
@@ -125,13 +118,8 @@ export const getRecords = async (req: Request, res: Response) => {
 export const getRecordById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = req.user?.userId;
 
-    if (!userId) {
-      return res.status(401).json({ error: '用户未登录' });
-    }
-
-    const row: any = await DivinationRecordModel.findById(id, userId);
+    const row: any = await DivinationRecordModel.findById(id);
 
     if (!row) {
       return res.status(404).json({ error: '记录不存在' });
@@ -161,13 +149,8 @@ export const updateAiAnalysis = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { aiAnalysis } = req.body;
-    const userId = req.user?.userId;
 
-    if (!userId) {
-      return res.status(401).json({ error: '用户未登录' });
-    }
-
-    await DivinationRecordModel.updateAnalysis(id, aiAnalysis, userId);
+    await DivinationRecordModel.updateAnalysis(id, aiAnalysis);
 
     res.json({ success: true });
   } catch (error) {
@@ -180,13 +163,8 @@ export const updateAiAnalysis = async (req: Request, res: Response) => {
 export const deleteRecord = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = req.user?.userId;
 
-    if (!userId) {
-      return res.status(401).json({ error: '用户未登录' });
-    }
-
-    await DivinationRecordModel.deleteById(id, userId);
+    await DivinationRecordModel.deleteById(id);
 
     res.json({ success: true });
   } catch (error) {
@@ -202,11 +180,6 @@ export const updateVerification = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { actual_result, accuracy_rating, user_notes } = req.body;
-    const userId = req.user?.userId;
-
-    if (!userId) {
-      return res.status(401).json({ error: '用户未登录' });
-    }
 
     // 验证参数
     if (!actual_result || !accuracy_rating) {
@@ -221,7 +194,7 @@ export const updateVerification = async (req: Request, res: Response) => {
       actual_result,
       accuracy_rating,
       user_notes
-    }, userId);
+    });
 
     res.json({ success: true, message: '验证信息已保存' });
   } catch (error) {
@@ -234,13 +207,8 @@ export const updateVerification = async (req: Request, res: Response) => {
 export const cancelVerification = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = req.user?.userId;
 
-    if (!userId) {
-      return res.status(401).json({ error: '用户未登录' });
-    }
-
-    await DivinationRecordModel.cancelVerification(id, userId);
+    await DivinationRecordModel.cancelVerification(id);
 
     res.json({ success: true, message: '验证已取消' });
   } catch (error) {
@@ -254,13 +222,8 @@ export const getVerifiedRecords = async (req: Request, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 100;
     const offset = parseInt(req.query.offset as string) || 0;
-    const userId = req.user?.userId;
 
-    if (!userId) {
-      return res.status(401).json({ error: '用户未登录' });
-    }
-
-    const records = await DivinationRecordModel.findVerified(limit, offset, userId);
+    const records = await DivinationRecordModel.findVerified(limit, offset);
 
     // 解析JSON字段
     const parsedRecords = (records as any[]).map((r: any) => ({
@@ -283,13 +246,8 @@ export const getUnverifiedRecords = async (req: Request, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 100;
     const offset = parseInt(req.query.offset as string) || 0;
-    const userId = req.user?.userId;
 
-    if (!userId) {
-      return res.status(401).json({ error: '用户未登录' });
-    }
-
-    const records = await DivinationRecordModel.findUnverified(limit, offset, userId);
+    const records = await DivinationRecordModel.findUnverified(limit, offset);
 
     // 解析JSON字段
     const parsedRecords = (records as any[]).map((r: any) => ({
@@ -310,13 +268,7 @@ export const getUnverifiedRecords = async (req: Request, res: Response) => {
 // 获取统计信息
 export const getStatistics = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
-
-    if (!userId) {
-      return res.status(401).json({ error: '用户未登录' });
-    }
-
-    const stats = await DivinationRecordModel.getStatistics(userId);
+    const stats = await DivinationRecordModel.getStatistics();
 
     res.json(stats);
   } catch (error) {
