@@ -22,7 +22,7 @@ const router = Router();
 router.post(
   '/',
   authenticate,
-  requirePermissions(['bazi:create']),
+  requirePermissions('bazi:create'),
   baziController.createBazi
 );
 
@@ -34,7 +34,7 @@ router.post(
 router.get(
   '/records',
   authenticate,
-  requirePermissions(['bazi:view']),
+  requirePermissions('bazi:view'),
   baziController.getRecords
 );
 
@@ -46,7 +46,7 @@ router.get(
 router.get(
   '/records/:id',
   authenticate,
-  requirePermissions(['bazi:view']),
+  requirePermissions('bazi:view'),
   baziController.getRecordById
 );
 
@@ -58,7 +58,7 @@ router.get(
 router.delete(
   '/records/:id',
   authenticate,
-  requirePermissions(['bazi:delete']),
+  requirePermissions('bazi:delete'),
   baziController.deleteRecord
 );
 
@@ -70,7 +70,7 @@ router.delete(
 router.put(
   '/records/:id/analysis',
   authenticate,
-  requirePermissions(['bazi:aiAnalysis']),
+  requirePermissions('bazi:aiAnalysis'),
   baziController.updateAiAnalysis
 );
 
@@ -82,7 +82,7 @@ router.put(
 router.put(
   '/records/:id/verification',
   authenticate,
-  requirePermissions(['bazi:verify']),
+  requirePermissions('bazi:verify'),
   baziController.updateVerification
 );
 
@@ -107,7 +107,7 @@ router.post(
 router.post(
   '/ai/analyze',
   authenticate,
-  requirePermissions(['bazi:aiAnalysis']),
+  requirePermissions('bazi:aiAnalysis'),
   aiController.analyzeBazi
 );
 
@@ -119,7 +119,7 @@ router.post(
 router.post(
   '/ai/analyze-sync',
   authenticate,
-  requirePermissions(['bazi:aiAnalysis']),
+  requirePermissions('bazi:aiAnalysis'),
   aiController.analyzeBaziSync
 );
 

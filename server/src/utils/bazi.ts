@@ -232,8 +232,8 @@ export function calculateDaYun(
 
   // 3. 排大运（从月柱开始，顺排或逆排）
   const steps: DaYunStep[] = [];
-  let ganIndex = TIAN_GAN.indexOf(monthGan);
-  let zhiIndex = DI_ZHI.indexOf(monthZhi);
+  let ganIndex = TIAN_GAN.indexOf(monthGan as any);
+  let zhiIndex = DI_ZHI.indexOf(monthZhi as any);
 
   for (let i = 0; i < 8; i++) {
     // 顺排：递增；逆排：递减

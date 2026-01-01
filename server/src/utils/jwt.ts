@@ -17,6 +17,8 @@ export interface TokenPayload {
   userId: string;
   username: string;
   roles?: string[];
+  jti?: string;  // JWT ID - unique identifier for the token
+  exp?: number;  // Expiration time - Unix timestamp
 }
 
 /**

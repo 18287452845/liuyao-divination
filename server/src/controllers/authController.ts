@@ -5,7 +5,7 @@
 
 import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { getPool, query, queryOne } from '../models/database';
+import { pool, query, queryOne } from '../models/database';
 import { hashPassword, verifyPassword } from '../utils/password';
 import { generateAccessToken, generateRefreshToken, verifyToken, extractTokenFromHeader } from '../utils/jwt';
 import { logSuccess, logFailure, AuditAction } from '../utils/audit';
@@ -469,7 +469,7 @@ export async function register(req: Request, res: Response): Promise<void> {
     // 创建用户（与邀请码消耗放在同一个事务中，避免并发超发邀请码）
     const userId = uuidv4();
 
-    const connection = await getPool().getConnection();
+    const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
 
