@@ -1,5 +1,5 @@
 import React from 'react';
-import type { BaZi, ShiShenAnalysis, WuXingAnalysis, WUXING_COLORS, SHISHEN_COLORS } from '../types/bazi';
+import type { BaZi, ShiShenAnalysis, WuXingAnalysis } from '../types/bazi';
 
 interface BaziChartProps {
   bazi: BaZi;
