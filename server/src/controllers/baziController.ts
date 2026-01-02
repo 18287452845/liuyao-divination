@@ -232,11 +232,32 @@ export async function getRecords(req: Request, res: Response): Promise<void> {
 
     const records: any = await query(sql, params);
 
-    // 解析JSON字段
+    // 解析JSON字段并转换为camelCase
     const parsedRecords = records.map((record: any) => ({
-      ...record,
-      bazi_data: JSON.parse(record.bazi_data),
-      dayun_data: record.dayun_data ? JSON.parse(record.dayun_data) : null
+      id: record.id,
+      userId: record.user_id,
+      timestamp: record.timestamp,
+      name: record.name,
+      gender: record.gender,
+      birthDatetime: record.birth_datetime,
+      birthLocation: record.birth_location,
+      useTrueSolarTime: Boolean(record.use_true_solar_time),
+      question: record.question,
+      yearPillar: record.year_pillar,
+      monthPillar: record.month_pillar,
+      dayPillar: record.day_pillar,
+      hourPillar: record.hour_pillar,
+      baziData: JSON.parse(record.bazi_data),
+      dayunData: record.dayun_data ? JSON.parse(record.dayun_data) : null,
+      qiyunAge: record.qiyun_age,
+      aiAnalysis: record.ai_analysis,
+      aiModel: record.ai_model,
+      aiAnalyzedAt: record.ai_analyzed_at,
+      isVerified: Boolean(record.is_verified),
+      actualFeedback: record.actual_feedback,
+      accuracyRating: record.accuracy_rating,
+      verificationDate: record.verification_date,
+      createdAt: record.created_at
     }));
 
     // 获取总数
@@ -254,8 +275,8 @@ export async function getRecords(req: Request, res: Response): Promise<void> {
 
     res.json({
       success: true,
-      data: parsedRecords,
-      pagination: {
+      data: {
+        records: parsedRecords,
         total,
         limit: Number(limit),
         offset: Number(offset)
@@ -296,11 +317,31 @@ export async function getRecordById(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // 解析JSON字段
+    // 解析JSON字段并转换为camelCase
     const parsedRecord = {
-      ...record,
-      bazi_data: JSON.parse(record.bazi_data),
-      dayun_data: record.dayun_data ? JSON.parse(record.dayun_data) : null
+      id: record.id,
+      userId: record.user_id,
+      timestamp: record.timestamp,
+      name: record.name,
+      gender: record.gender,
+      birthDatetime: record.birth_datetime,
+      birthLocation: record.birth_location,
+      useTrueSolarTime: Boolean(record.use_true_solar_time),
+      question: record.question,
+      yearPillar: record.year_pillar,
+      monthPillar: record.month_pillar,
+      dayPillar: record.day_pillar,
+      hourPillar: record.hour_pillar,
+      baziData: JSON.parse(record.bazi_data),
+      dayunData: record.dayun_data ? JSON.parse(record.dayun_data) : null,
+      qiyunAge: record.qiyun_age,
+      aiAnalysis: record.ai_analysis,
+      aiModel: record.ai_model,
+      aiAnalyzedAt: record.ai_analyzed_at,
+      isVerified: Boolean(record.is_verified),
+      actualFeedback: record.actual_feedback,
+      accuracyRating: record.accuracy_rating,
+      verificationDate: record.verification_date
     };
 
     res.json({
