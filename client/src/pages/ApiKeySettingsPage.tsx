@@ -121,9 +121,15 @@ const ApiKeySettingsPage: React.FC = () => {
   };
 
   const handleTestApiKey = async () => {
-    const keyToTest = isEditing ? newApiKey : '';
-    
-    if (!keyToTest && !apiKeyInfo?.hasApiKey) {
+    // 如果正在编辑，测试新输入的key；否则测试已保存的key
+    const keyToTest = isEditing ? newApiKey.trim() : null;
+
+    if (isEditing && !keyToTest) {
+      setError('请输入API Key');
+      return;
+    }
+
+    if (!isEditing && !apiKeyInfo?.hasApiKey) {
       setError('请先配置API Key');
       return;
     }
@@ -139,7 +145,8 @@ const ApiKeySettingsPage: React.FC = () => {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ apiKey: keyToTest || undefined }),
+        // 如果keyToTest为null，后端将测试数据库中已保存的key
+        body: JSON.stringify(keyToTest ? { apiKey: keyToTest } : {}),
       });
 
       const data = await response.json();

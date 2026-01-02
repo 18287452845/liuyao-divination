@@ -166,19 +166,29 @@ export async function testApiKey(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const { apiKey } = req.body;
+    let { apiKey } = req.body;
 
+    // 如果请求中没有提供apiKey，则从数据库中读取用户已保存的key
     if (!apiKey) {
-      res.status(400).json({
-        success: false,
-        message: 'API Key不能为空',
-      });
-      return;
+      const user: any = await queryOne(
+        'SELECT deepseek_api_key FROM users WHERE id = ?',
+        [req.user.userId]
+      );
+
+      if (!user || !user.deepseek_api_key) {
+        res.status(400).json({
+          success: false,
+          message: '请先配置API Key',
+        });
+        return;
+      }
+
+      apiKey = user.deepseek_api_key;
     }
 
     // 简单测试：调用 DeepSeek API
     const axios = require('axios');
-    
+
     try {
       const response = await axios.post(
         'https://api.deepseek.com/v1/chat/completions',
@@ -214,7 +224,7 @@ export async function testApiKey(req: Request, res: Response): Promise<void> {
       }
     } catch (apiError: any) {
       console.error('API Key验证错误:', apiError.response?.data || apiError.message);
-      
+
       if (apiError.response?.status === 401) {
         res.json({
           success: false,
