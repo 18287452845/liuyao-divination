@@ -27,6 +27,7 @@ mysql -h "$MYSQL_HOST" -P "$MYSQL_PORT" -uroot -p"$MYSQL_ROOT_PASSWORD" -e "DROP
 echo "[db-init] Initializing schema/data from latest SQL files"
 for file in \
   00_init_complete.sql \
+  01_init_data.sql \
   02_auth_permissions_migration.sql \
   02_auth_permissions_enhancement.sql \
   02_bazi_tables.sql; do
