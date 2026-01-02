@@ -114,86 +114,149 @@ const LoginPage: React.FC = () => {
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-6">
             {/* 用户名 */}
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <label className="block text-sm font-bold text-gray-700 ml-1">
-                用户名
+                <span className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  用户名
+                </span>
               </label>
-              <input
-                type="text"
-                name="username"
-                value={formData.username}
-                onChange={handleInputChange}
-                required
-                className="input-field"
-                placeholder="请输入用户名"
-              />
+              <div className="relative group">
+                <input
+                  type="text"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleInputChange}
+                  required
+                  autoComplete="username"
+                  className="w-full bg-white/80 border-2 border-gray-200 rounded-xl px-4 py-3.5 outline-none
+                    focus:border-primary focus:bg-white focus:shadow-lg focus:shadow-primary/10
+                    transition-all duration-300 text-gray-800 placeholder-gray-400
+                    hover:border-gray-300 hover:bg-white"
+                  placeholder="请输入用户名"
+                />
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-focus-within:opacity-100 -z-10 blur-xl transition-opacity duration-300"></div>
+              </div>
             </div>
 
             {/* 密码 */}
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <label className="block text-sm font-bold text-gray-700 ml-1">
-                密码
+                <span className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  密码
+                </span>
               </label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                required
-                className="input-field"
-                placeholder="请输入密码"
-              />
+              <div className="relative group">
+                <input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  required
+                  autoComplete={isLogin ? "current-password" : "new-password"}
+                  className="w-full bg-white/80 border-2 border-gray-200 rounded-xl px-4 py-3.5 outline-none
+                    focus:border-primary focus:bg-white focus:shadow-lg focus:shadow-primary/10
+                    transition-all duration-300 text-gray-800 placeholder-gray-400
+                    hover:border-gray-300 hover:bg-white"
+                  placeholder="请输入密码"
+                />
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-focus-within:opacity-100 -z-10 blur-xl transition-opacity duration-300"></div>
+              </div>
             </div>
 
             {/* 注册额外字段 */}
             {!isLogin && (
-              <div className="space-y-5 animate-fade-in">
-                <div className="space-y-1.5">
+              <div className="space-y-6 animate-fade-in">
+                <div className="space-y-2">
                   <label className="block text-sm font-bold text-gray-700 ml-1">
-                    邀请码 <span className="text-red-500">*</span>
+                    <span className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                      </svg>
+                      邀请码 <span className="text-red-500">*</span>
+                    </span>
                   </label>
-                  <input
-                    type="text"
-                    name="inviteCode"
-                    value={formData.inviteCode}
-                    onChange={handleInputChange}
-                    required
-                    className="input-field"
-                    placeholder="请输入邀请码"
-                  />
-                  <p className="text-xs text-gray-500 ml-1">
+                  <div className="relative group">
+                    <input
+                      type="text"
+                      name="inviteCode"
+                      value={formData.inviteCode}
+                      onChange={handleInputChange}
+                      required
+                      autoComplete="off"
+                      className="w-full bg-white/80 border-2 border-gray-200 rounded-xl px-4 py-3.5 outline-none
+                        focus:border-primary focus:bg-white focus:shadow-lg focus:shadow-primary/10
+                        transition-all duration-300 text-gray-800 placeholder-gray-400
+                        hover:border-gray-300 hover:bg-white"
+                      placeholder="请输入邀请码"
+                    />
+                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-focus-within:opacity-100 -z-10 blur-xl transition-opacity duration-300"></div>
+                  </div>
+                  <p className="text-xs text-gray-500 ml-1 flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                     注册需要邀请码，请联系管理员获取
                   </p>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <label className="block text-sm font-bold text-gray-700 ml-1">
-                    邮箱（可选）
+                    <span className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      邮箱（可选）
+                    </span>
                   </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    className="input-field"
-                    placeholder="请输入邮箱"
-                  />
+                  <div className="relative group">
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      autoComplete="email"
+                      className="w-full bg-white/80 border-2 border-gray-200 rounded-xl px-4 py-3.5 outline-none
+                        focus:border-primary focus:bg-white focus:shadow-lg focus:shadow-primary/10
+                        transition-all duration-300 text-gray-800 placeholder-gray-400
+                        hover:border-gray-300 hover:bg-white"
+                      placeholder="请输入邮箱"
+                    />
+                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-focus-within:opacity-100 -z-10 blur-xl transition-opacity duration-300"></div>
+                  </div>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <label className="block text-sm font-bold text-gray-700 ml-1">
-                    真实姓名（可选）
+                    <span className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      真实姓名（可选）
+                    </span>
                   </label>
-                  <input
-                    type="text"
-                    name="realName"
-                    value={formData.realName}
-                    onChange={handleInputChange}
-                    className="input-field"
-                    placeholder="请输入真实姓名"
-                  />
+                  <div className="relative group">
+                    <input
+                      type="text"
+                      name="realName"
+                      value={formData.realName}
+                      onChange={handleInputChange}
+                      autoComplete="name"
+                      className="w-full bg-white/80 border-2 border-gray-200 rounded-xl px-4 py-3.5 outline-none
+                        focus:border-primary focus:bg-white focus:shadow-lg focus:shadow-primary/10
+                        transition-all duration-300 text-gray-800 placeholder-gray-400
+                        hover:border-gray-300 hover:bg-white"
+                      placeholder="请输入真实姓名"
+                    />
+                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-focus-within:opacity-100 -z-10 blur-xl transition-opacity duration-300"></div>
+                  </div>
                 </div>
               </div>
             )}
@@ -209,9 +272,35 @@ const LoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full btn-primary mt-2"
+              className="w-full bg-gradient-to-r from-primary via-red-600 to-primary text-white font-bold py-4 px-6 rounded-xl
+                shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5
+                active:translate-y-0 transition-all duration-300 mt-4
+                disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0
+                flex items-center justify-center gap-2 text-lg"
             >
-              {loading ? '处理中...' : isLogin ? '立即登录' : '立即注册'}
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  处理中...
+                </>
+              ) : isLogin ? (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                  </svg>
+                  立即登录
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  </svg>
+                  立即注册
+                </>
+              )}
             </button>
           </form>
 
