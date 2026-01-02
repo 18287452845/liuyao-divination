@@ -109,7 +109,7 @@ ON DUPLICATE KEY UPDATE role_permissions.created_at = role_permissions.created_a
 -- 用户名: admin, 密码: admin123
 -- ====================================
 INSERT INTO users (id, username, password, email, real_name, status) VALUES
-('user-admin-001', 'admin', '$2a$10$e8SuMNBbWh2m87ct/r9PTenXZuXQ.zT1P1gpYpQQtm7ccZJK1CeG6', 'admin@liuyao.com', '系统管理员', 1)
+('user-admin-001', 'admin', '$2a$10$bsLON33LP5qd.3soxumKfezEDQvsnJ20cNv6IPPF5DeXzMpzi42yO', 'admin@liuyao.com', '系统管理员', 1)
 ON DUPLICATE KEY UPDATE password = VALUES(password), updated_at = CURRENT_TIMESTAMP;
 
 -- ====================================
@@ -130,7 +130,7 @@ ON DUPLICATE KEY UPDATE user_roles.created_at = user_roles.created_at;
 -- 用户名: testuser, 密码: test123
 -- ====================================
 INSERT INTO users (id, username, password, email, real_name, status) VALUES
-('user-test-001', 'testuser', '$2a$10$YoN76UeuA5AIiIiBMLH.5OCfiTAjgDaXp/Ve6ATVB.zTHO/x4w8/W', 'test@liuyao.com', '测试用户', 1)
+('user-test-001', 'testuser', '$2a$10$RkPAzV3AaTDwcukAKRod.eTh76DpXzfKk9uuf7fjdWkNoSR.Yl.se', 'test@liuyao.com', '测试用户', 1)
 ON DUPLICATE KEY UPDATE password = VALUES(password), updated_at = CURRENT_TIMESTAMP;
 
 -- ====================================
