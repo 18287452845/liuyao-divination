@@ -218,8 +218,8 @@ ON DUPLICATE KEY UPDATE permission_code=VALUES(permission_code);
 -- --------------------------------------------
 -- 为默认 'user' 角色分配八字权限
 -- --------------------------------------------
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id
+INSERT INTO role_permissions (id, role_id, permission_id)
+SELECT UUID(), r.id, p.id
 FROM roles r
 CROSS JOIN permissions p
 WHERE r.role_code = 'user'
@@ -232,8 +232,8 @@ WHERE r.role_code = 'user'
 -- --------------------------------------------
 -- 为 'admin' 角色分配所有八字权限
 -- --------------------------------------------
-INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id
+INSERT INTO role_permissions (id, role_id, permission_id)
+SELECT UUID(), r.id, p.id
 FROM roles r
 CROSS JOIN permissions p
 WHERE r.role_code = 'admin'
