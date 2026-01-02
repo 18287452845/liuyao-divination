@@ -207,11 +207,11 @@ export async function getRecords(req: Request, res: Response): Promise<void> {
     let sql = `
       SELECT
         id, user_id, timestamp,
-        name, gender, birth_datetime, birth_location, use_true_solar_time, question,
+        name, gender, birth_datetime, birth_location, use_true_solar_time,
         year_pillar, month_pillar, day_pillar, hour_pillar,
         bazi_data, dayun_data, qiyun_age, shun_pai,
         ai_analysis, ai_model, ai_analyzed_at,
-        is_verified, actual_feedback, accuracy_rating, verification_date,
+        is_verified, actual_feedback, accuracy_rating,
         created_at
       FROM bazi_records
       WHERE user_id = ?
@@ -243,7 +243,6 @@ export async function getRecords(req: Request, res: Response): Promise<void> {
       birthDatetime: record.birth_datetime,
       birthLocation: record.birth_location,
       useTrueSolarTime: Boolean(record.use_true_solar_time),
-      question: record.question,
       yearPillar: record.year_pillar,
       monthPillar: record.month_pillar,
       dayPillar: record.day_pillar,
@@ -261,7 +260,6 @@ export async function getRecords(req: Request, res: Response): Promise<void> {
       isVerified: Boolean(record.is_verified),
       actualFeedback: record.actual_feedback,
       accuracyRating: record.accuracy_rating,
-      verificationDate: record.verification_date,
       createdAt: record.created_at
     }));
 
@@ -332,7 +330,6 @@ export async function getRecordById(req: Request, res: Response): Promise<void> 
       birthDatetime: record.birth_datetime,
       birthLocation: record.birth_location,
       useTrueSolarTime: Boolean(record.use_true_solar_time),
-      question: record.question,
       yearPillar: record.year_pillar,
       monthPillar: record.month_pillar,
       dayPillar: record.day_pillar,
@@ -349,8 +346,7 @@ export async function getRecordById(req: Request, res: Response): Promise<void> 
       aiAnalyzedAt: record.ai_analyzed_at,
       isVerified: Boolean(record.is_verified),
       actualFeedback: record.actual_feedback,
-      accuracyRating: record.accuracy_rating,
-      verificationDate: record.verification_date
+      accuracyRating: record.accuracy_rating
     };
 
     res.json({

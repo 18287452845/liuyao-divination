@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize from 'rehype-sanitize';
 import { baziApi, analyzeBaziStream } from '../utils/baziApi';
 import type { BaziRecord } from '../types/bazi';
 
@@ -58,8 +62,7 @@ const BaziAiAnalysisPage: React.FC = () => {
           baziData: record.baziData,
           dayunData: record.dayunData.steps.slice(0, 5),
           name: record.name,
-          gender: record.gender,
-          question: record.question
+          gender: record.gender
         },
         (content) => {
           setAnalysis((prev) => prev + content);
@@ -175,9 +178,108 @@ const BaziAiAnalysisPage: React.FC = () => {
                 </button>
               )}
             </div>
-            <div className="prose max-w-none">
-              <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
-                {analysis}
+            <div className="prose prose-lg max-w-none">
+              <div className="markdown-content bg-gradient-to-br from-gray-50 to-white rounded-xl p-8 border border-gray-100">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeRaw, rehypeSanitize]}
+                  components={{
+                    h1: ({ children }) => (
+                      <h1 className="text-3xl font-bold text-gray-900 mb-6 pb-3 border-b-2 border-purple-200">
+                        {children}
+                      </h1>
+                    ),
+                    h2: ({ children }) => (
+                      <h2 className="text-2xl font-bold text-gray-800 mt-8 mb-4 pb-2 border-b border-gray-200">
+                        {children}
+                      </h2>
+                    ),
+                    h3: ({ children }) => (
+                      <h3 className="text-xl font-semibold text-gray-800 mt-6 mb-3">
+                        {children}
+                      </h3>
+                    ),
+                    h4: ({ children }) => (
+                      <h4 className="text-lg font-semibold text-gray-700 mt-4 mb-2">
+                        {children}
+                      </h4>
+                    ),
+                    p: ({ children }) => (
+                      <p className="text-gray-700 leading-relaxed mb-4 text-base">
+                        {children}
+                      </p>
+                    ),
+                    ul: ({ children }) => (
+                      <ul className="list-disc list-inside space-y-2 mb-4 ml-4">
+                        {children}
+                      </ul>
+                    ),
+                    ol: ({ children }) => (
+                      <ol className="list-decimal list-inside space-y-2 mb-4 ml-4">
+                        {children}
+                      </ol>
+                    ),
+                    li: ({ children }) => (
+                      <li className="text-gray-700 leading-relaxed">
+                        {children}
+                      </li>
+                    ),
+                    strong: ({ children }) => (
+                      <strong className="font-bold text-gray-900">
+                        {children}
+                      </strong>
+                    ),
+                    em: ({ children }) => (
+                      <em className="italic text-purple-700">
+                        {children}
+                      </em>
+                    ),
+                    blockquote: ({ children }) => (
+                      <blockquote className="border-l-4 border-purple-400 pl-4 py-2 my-4 bg-purple-50 italic text-gray-700">
+                        {children}
+                      </blockquote>
+                    ),
+                    code: ({ className, children }) => {
+                      const inline = !className;
+                      return inline ? (
+                        <code className="bg-gray-100 text-purple-700 px-2 py-1 rounded text-sm font-mono">
+                          {children}
+                        </code>
+                      ) : (
+                        <code className="block bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm font-mono my-4">
+                          {children}
+                        </code>
+                      );
+                    },
+                    table: ({ children }) => (
+                      <div className="overflow-x-auto my-6">
+                        <table className="min-w-full divide-y divide-gray-200 border border-gray-300 rounded-lg">
+                          {children}
+                        </table>
+                      </div>
+                    ),
+                    thead: ({ children }) => (
+                      <thead className="bg-purple-50">
+                        {children}
+                      </thead>
+                    ),
+                    th: ({ children }) => (
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-b border-gray-300">
+                        {children}
+                      </th>
+                    ),
+                    td: ({ children }) => (
+                      <td className="px-4 py-3 text-sm text-gray-700 border-b border-gray-200">
+                        {children}
+                      </td>
+                    ),
+                    hr: () => (
+                      <hr className="my-6 border-t-2 border-gray-200" />
+                    ),
+                  }}
+                >
+                  {analysis}
+                </ReactMarkdown>
               </div>
             </div>
           </div>
