@@ -207,10 +207,11 @@ export async function getRecords(req: Request, res: Response): Promise<void> {
     let sql = `
       SELECT
         id, user_id, timestamp,
-        name, gender, birth_datetime, birth_location,
+        name, gender, birth_datetime, birth_location, use_true_solar_time, question,
         year_pillar, month_pillar, day_pillar, hour_pillar,
-        bazi_data, dayun_data, qiyun_age,
-        ai_analysis, is_verified, accuracy_rating,
+        bazi_data, dayun_data, qiyun_age, shun_pai,
+        ai_analysis, ai_model, ai_analyzed_at,
+        is_verified, actual_feedback, accuracy_rating, verification_date,
         created_at
       FROM bazi_records
       WHERE user_id = ?
@@ -248,7 +249,11 @@ export async function getRecords(req: Request, res: Response): Promise<void> {
       dayPillar: record.day_pillar,
       hourPillar: record.hour_pillar,
       baziData: JSON.parse(record.bazi_data),
-      dayunData: record.dayun_data ? JSON.parse(record.dayun_data) : null,
+      dayunData: {
+        steps: record.dayun_data ? JSON.parse(record.dayun_data) : [],
+        qiyunAge: record.qiyun_age,
+        shunPai: Boolean(record.shun_pai)
+      },
       qiyunAge: record.qiyun_age,
       aiAnalysis: record.ai_analysis,
       aiModel: record.ai_model,
@@ -333,7 +338,11 @@ export async function getRecordById(req: Request, res: Response): Promise<void> 
       dayPillar: record.day_pillar,
       hourPillar: record.hour_pillar,
       baziData: JSON.parse(record.bazi_data),
-      dayunData: record.dayun_data ? JSON.parse(record.dayun_data) : null,
+      dayunData: {
+        steps: record.dayun_data ? JSON.parse(record.dayun_data) : [],
+        qiyunAge: record.qiyun_age,
+        shunPai: Boolean(record.shun_pai)
+      },
       qiyunAge: record.qiyun_age,
       aiAnalysis: record.ai_analysis,
       aiModel: record.ai_model,
