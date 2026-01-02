@@ -222,7 +222,7 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r
 CROSS JOIN permissions p
-WHERE r.role_name = 'user'
+WHERE r.role_code = 'user'
   AND p.module = 'bazi'
   AND NOT EXISTS (
     SELECT 1 FROM role_permissions rp2
@@ -236,7 +236,7 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r
 CROSS JOIN permissions p
-WHERE r.role_name = 'admin'
+WHERE r.role_code = 'admin'
   AND p.module = 'bazi'
   AND NOT EXISTS (
     SELECT 1 FROM role_permissions rp2
