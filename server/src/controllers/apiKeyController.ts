@@ -189,6 +189,9 @@ export async function testApiKey(req: Request, res: Response): Promise<void> {
     // 简单测试：调用 DeepSeek API
     const axios = require('axios');
 
+    console.log('[API Key Test] 开始测试 DeepSeek API Key...');
+    console.log('[API Key Test] API Key 前缀:', apiKey.substring(0, 10) + '...');
+
     try {
       const response = await axios.post(
         'https://api.deepseek.com/v1/chat/completions',
@@ -207,9 +210,11 @@ export async function testApiKey(req: Request, res: Response): Promise<void> {
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
-          timeout: 10000
+          timeout: 30000  // 增加到30秒
         }
       );
+
+      console.log('[API Key Test] DeepSeek API 响应状态:', response.status);
 
       if (response.status === 200) {
         res.json({
@@ -223,9 +228,22 @@ export async function testApiKey(req: Request, res: Response): Promise<void> {
         });
       }
     } catch (apiError: any) {
-      console.error('API Key验证错误:', apiError.response?.data || apiError.message);
+      console.error('[API Key Test] 验证失败 - 错误类型:', apiError.code);
+      console.error('[API Key Test] 错误消息:', apiError.message);
+      console.error('[API Key Test] 响应状态:', apiError.response?.status);
+      console.error('[API Key Test] 响应数据:', JSON.stringify(apiError.response?.data, null, 2));
 
-      if (apiError.response?.status === 401) {
+      if (apiError.code === 'ECONNREFUSED') {
+        res.json({
+          success: false,
+          message: '无法连接到 DeepSeek API 服务器，请检查网络连接',
+        });
+      } else if (apiError.code === 'ETIMEDOUT' || apiError.code === 'ECONNABORTED') {
+        res.json({
+          success: false,
+          message: '连接超时，请检查网络或稍后重试',
+        });
+      } else if (apiError.response?.status === 401) {
         res.json({
           success: false,
           message: 'API Key 无效或已过期',
