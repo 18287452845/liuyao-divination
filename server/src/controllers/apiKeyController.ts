@@ -175,10 +175,8 @@ async function axiosWithRetry(
       const response = await axios({
         method: 'post',
         ...config,
-        httpsAgent: {
-          ...httpsAgent,
-          timeout: 30000
-        }
+        httpsAgent: httpsAgent,
+        timeout: 30000
       });
       console.log(`[API Key Test] 请求成功（尝试 ${attempt}）`);
       return response;
