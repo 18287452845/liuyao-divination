@@ -276,7 +276,8 @@ export async function testApiKey(req: Request, res: Response): Promise<void> {
       console.log(`[${requestId}] [API Key Test] 响应状态: ${response.status}`);
       console.log(`[${requestId}] [API Key Test] 响应数据:`, JSON.stringify(response.data));
 
-      if (response.status === 200) {
+      // 2xx 状态码都表示成功（200, 201, 202, 204 等）
+      if (response.status >= 200 && response.status < 300) {
         res.json({
           success: true,
           message: 'API Key 验证成功',
