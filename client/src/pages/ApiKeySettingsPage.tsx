@@ -139,6 +139,10 @@ const ApiKeySettingsPage: React.FC = () => {
       setError(null);
       setSuccess(null);
 
+      // 添加超时控制（45秒）
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
+
       const response = await fetch('/api/user/api-key/test', {
         method: 'POST',
         headers: {
@@ -147,7 +151,10 @@ const ApiKeySettingsPage: React.FC = () => {
         },
         // 如果keyToTest为null，后端将测试数据库中已保存的key
         body: JSON.stringify(keyToTest ? { apiKey: keyToTest } : {}),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
 
@@ -155,9 +162,17 @@ const ApiKeySettingsPage: React.FC = () => {
         setSuccess('✅ API Key 验证成功！');
       } else {
         setError('❌ ' + (data.message || 'API Key 验证失败'));
+        // 开发环境显示调试信息
+        if (import.meta.env.DEV && data.debug) {
+          console.error('API Key 测试调试信息:', data.debug);
+        }
       }
-    } catch (err) {
-      setError('网络错误，请稍后重试');
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        setError('❌ 请求超时，请检查网络连接或稍后重试');
+      } else {
+        setError('❌ 网络错误，请稍后重试');
+      }
       console.error('测试API Key错误:', err);
     } finally {
       setTesting(false);

@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
-import rehypeSanitize from 'rehype-sanitize';
 import { baziApi, analyzeBaziStream } from '../utils/baziApi';
 import type { BaziRecord } from '../types/bazi';
 
@@ -182,7 +180,6 @@ const BaziAiAnalysisPage: React.FC = () => {
               <div className="markdown-content bg-gradient-to-br from-gray-50 to-white rounded-xl p-8 border border-gray-100">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeRaw, rehypeSanitize]}
                   components={{
                     h1: ({ children }) => (
                       <h1 className="text-3xl font-bold text-gray-900 mb-6 pb-3 border-b-2 border-purple-200">

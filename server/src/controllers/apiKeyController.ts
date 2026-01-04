@@ -154,9 +154,73 @@ export async function deleteApiKey(req: Request, res: Response): Promise<void> {
 }
 
 /**
+ * 手动实现axios重试逻辑
+ * 用于处理网络抖动和临时性连接问题
+ */
+async function axiosWithRetry(
+  config: any,
+  maxRetries = 3,
+  retryDelay = 1500
+): Promise<any> {
+  const https = require('https');
+  const axios = require('axios');
+  const httpsAgent = new https.Agent({
+    keepAlive: true,
+    rejectUnauthorized: true
+  });
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[API Key Test] 请求尝试 ${attempt}/${maxRetries}`);
+      const response = await axios({
+        method: 'post',
+        ...config,
+        httpsAgent: {
+          ...httpsAgent,
+          timeout: 30000
+        }
+      });
+      console.log(`[API Key Test] 请求成功（尝试 ${attempt}）`);
+      return response;
+    } catch (error: any) {
+      const isLastAttempt = attempt === maxRetries;
+
+      console.log(`[API Key Test] 请求失败（尝试 ${attempt}/${maxRetries}）`);
+      console.log(`[API Key Test] 错误类型: ${error.code}`);
+      console.log(`[API Key Test] 错误消息: ${error.message}`);
+
+      if (error.response) {
+        console.log(`[API Key Test] HTTP状态: ${error.response.status}`);
+        console.log(`[API Key Test] 响应数据:`, JSON.stringify(error.response.data));
+
+        // 4xx错误（除了429）不应重试
+        if (error.response.status >= 400 &&
+            error.response.status < 500 &&
+            error.response.status !== 429) {
+          throw error;
+        }
+      }
+
+      if (isLastAttempt) {
+        console.error(`[API Key Test] 所有重试均失败`);
+        throw error;
+      }
+
+      // 等待后重试
+      const delay = retryDelay * attempt;
+      console.log(`[API Key Test] 等待 ${delay}ms 后重试...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
+
+/**
  * 测试 API Key 是否有效
  */
 export async function testApiKey(req: Request, res: Response): Promise<void> {
+  const requestId = Math.random().toString(36).substring(7);
+  console.log(`[${requestId}] [API Key Test] 开始测试...`);
+
   try {
     if (!req.user) {
       res.status(401).json({
@@ -186,16 +250,14 @@ export async function testApiKey(req: Request, res: Response): Promise<void> {
       apiKey = user.deepseek_api_key;
     }
 
-    // 简单测试：调用 DeepSeek API
-    const axios = require('axios');
-
-    console.log('[API Key Test] 开始测试 DeepSeek API Key...');
-    console.log('[API Key Test] API Key 前缀:', apiKey.substring(0, 10) + '...');
+    console.log(`[${requestId}] [API Key Test] API Key 前缀: ${apiKey.substring(0, 10)}...`);
+    console.log(`[${requestId}] [API Key Test] 请求URL: https://api.deepseek.com/v1/chat/completions`);
 
     try {
-      const response = await axios.post(
-        'https://api.deepseek.com/v1/chat/completions',
-        {
+      // 使用带重试的请求
+      const response = await axiosWithRetry({
+        url: 'https://api.deepseek.com/v1/chat/completions',
+        data: {
           model: 'deepseek-chat',
           messages: [
             {
@@ -205,16 +267,14 @@ export async function testApiKey(req: Request, res: Response): Promise<void> {
           ],
           max_tokens: 10
         },
-        {
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: 30000  // 增加到30秒
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
         }
-      );
+      }, 3, 1500); // 最多重试3次，初始延迟1.5秒
 
-      console.log('[API Key Test] DeepSeek API 响应状态:', response.status);
+      console.log(`[${requestId}] [API Key Test] 响应状态: ${response.status}`);
+      console.log(`[${requestId}] [API Key Test] 响应数据:`, JSON.stringify(response.data));
 
       if (response.status === 200) {
         res.json({
@@ -228,40 +288,61 @@ export async function testApiKey(req: Request, res: Response): Promise<void> {
         });
       }
     } catch (apiError: any) {
-      console.error('[API Key Test] 验证失败 - 错误类型:', apiError.code);
-      console.error('[API Key Test] 错误消息:', apiError.message);
-      console.error('[API Key Test] 响应状态:', apiError.response?.status);
-      console.error('[API Key Test] 响应数据:', JSON.stringify(apiError.response?.data, null, 2));
+      console.error(`[${requestId}] [API Key Test] 验证失败`);
+
+      // 详细的错误日志
+      if (apiError.code) {
+        console.error(`[${requestId}] [API Key Test] 错误代码: ${apiError.code}`);
+      }
+      if (apiError.message) {
+        console.error(`[${requestId}] [API Key Test] 错误消息: ${apiError.message}`);
+      }
+      if (apiError.response) {
+        console.error(`[${requestId}] [API Key Test] HTTP状态: ${apiError.response.status}`);
+        console.error(`[${requestId}] [API Key Test] 响应头:`, JSON.stringify(apiError.response.headers));
+        console.error(`[${requestId}] [API Key Test] 响应数据:`, JSON.stringify(apiError.response.data));
+      }
+      if (apiError.stack) {
+        console.error(`[${requestId}] [API Key Test] 堆栈跟踪:`, apiError.stack);
+      }
+
+      let errorMessage = 'API Key 验证失败';
 
       if (apiError.code === 'ECONNREFUSED') {
-        res.json({
-          success: false,
-          message: '无法连接到 DeepSeek API 服务器，请检查网络连接',
-        });
+        errorMessage = '无法连接到 DeepSeek API 服务器，请检查网络连接';
       } else if (apiError.code === 'ETIMEDOUT' || apiError.code === 'ECONNABORTED') {
-        res.json({
-          success: false,
-          message: '连接超时，请检查网络或稍后重试',
-        });
+        errorMessage = '连接超时，请检查网络或稍后重试';
+      } else if (apiError.code === 'ECONNRESET') {
+        errorMessage = '连接被重置，可能是网络不稳定导致';
       } else if (apiError.response?.status === 401) {
-        res.json({
-          success: false,
-          message: 'API Key 无效或已过期',
-        });
+        errorMessage = 'API Key 无效或已过期';
       } else if (apiError.response?.status === 429) {
-        res.json({
-          success: false,
-          message: 'API 调用频率过高，请稍后再试',
-        });
-      } else {
-        res.json({
-          success: false,
-          message: 'API Key 验证失败: ' + (apiError.response?.data?.error?.message || apiError.message),
-        });
+        errorMessage = 'API 调用频率过高，请稍后再试';
+      } else if (apiError.response?.status === 500) {
+        errorMessage = 'DeepSeek API 服务器错误，请稍后重试';
+      } else if (apiError.response?.status === 503) {
+        errorMessage = 'DeepSeek API 服务暂时不可用，请稍后重试';
+      } else if (apiError.response?.data?.error?.message) {
+        errorMessage = `API 返回错误: ${apiError.response.data.error.message}`;
+      } else if (apiError.message) {
+        errorMessage = `请求失败: ${apiError.message}`;
       }
+
+      res.json({
+        success: false,
+        message: errorMessage,
+        // 开发环境返回详细信息
+        ...(process.env.NODE_ENV === 'development' && {
+          debug: {
+            code: apiError.code,
+            status: apiError.response?.status,
+            details: apiError.response?.data
+          }
+        })
+      });
     }
   } catch (error) {
-    console.error('测试API Key错误:', error);
+    console.error(`[${requestId}] [API Key Test] 未知错误:`, error);
     res.status(500).json({
       success: false,
       message: '测试API Key失败',
