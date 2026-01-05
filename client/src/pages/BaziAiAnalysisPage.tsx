@@ -70,6 +70,7 @@ const BaziAiAnalysisPage: React.FC = () => {
           setAnalyzing(false);
         },
         () => {
+          // 流式传输完成时调用
           setAnalyzing(false);
         }
       );

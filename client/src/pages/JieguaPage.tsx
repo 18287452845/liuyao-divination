@@ -61,15 +61,17 @@ const JieguaPage: React.FC = () => {
         (error) => {
           console.error('解卦失败:', error);
           toast.error('解卦失败: ' + error);
+        },
+        () => {
+          // 流式传输完成时调用
+          toast.success('AI解卦完成');
           setAnalyzing(false);
         }
       );
-
-      toast.success('AI解卦完成');
-    } catch (error) {
+    } catch (error: any) {
       console.error('解卦出错:', error);
-      toast.error('解卦出错，请稍后重试');
-    } finally {
+      const errorMsg = error.message || '解卦出错，请稍后重试';
+      toast.error(errorMsg);
       setAnalyzing(false);
     }
   };

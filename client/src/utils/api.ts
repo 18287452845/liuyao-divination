@@ -121,8 +121,11 @@ export const divinationApi = {
 export const analyzeGuaStream = async (
   data: any,
   onChunk: (content: string) => void,
-  onError: (error: string) => void
+  onError: (error: string) => void,
+  onComplete?: () => void
 ) => {
+  let hasContent = false;
+
   try {
     const token = localStorage.getItem('accessToken');
     const headers: HeadersInit = {
@@ -140,7 +143,8 @@ export const analyzeGuaStream = async (
     });
 
     if (!response.ok) {
-      throw new Error('解卦请求失败');
+      const errorText = await response.text();
+      throw new Error(errorText || `解卦请求失败 (${response.status})`);
     }
 
     const reader = response.body?.getReader();
@@ -161,21 +165,31 @@ export const analyzeGuaStream = async (
         if (line.startsWith('data: ')) {
           const data = line.slice(6);
           if (data === '[DONE]') {
+            if (hasContent && onComplete) {
+              onComplete();
+            }
             return;
           }
 
           try {
             const parsed = JSON.parse(data);
             if (parsed.content) {
+              hasContent = true;
               onChunk(parsed.content);
             } else if (parsed.error) {
               onError(parsed.error);
+              return;
             }
           } catch (e) {
             // 忽略解析错误
           }
         }
       }
+    }
+
+    // 流结束但没有收到[DONE]信号
+    if (hasContent && onComplete) {
+      onComplete();
     }
   } catch (error: any) {
     onError(error.message || '解卦失败');

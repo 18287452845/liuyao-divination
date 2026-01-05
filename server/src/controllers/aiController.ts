@@ -9,6 +9,14 @@ export const analyzeGua = async (req: Request, res: Response) => {
   try {
     const { benGua, bianGua, decoration, question, gender, bazi, timestamp } = req.body;
 
+    // 检查API Key是否配置
+    if (!DEEPSEEK_API_KEY || DEEPSEEK_API_KEY.trim() === '') {
+      console.error('DeepSeek API Key未配置');
+      return res.status(500).json({
+        error: 'DeepSeek API Key未配置，请联系管理员配置API Key后再使用AI分析功能'
+      });
+    }
+
     // 构建解卦prompt
     const prompt = buildAnalysisPrompt(benGua, bianGua, decoration, question, gender, bazi, timestamp);
 
