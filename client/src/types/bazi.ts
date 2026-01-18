@@ -156,6 +156,7 @@ export interface DaYunStep {
   startAge: number;         // 起始年龄
   endAge: number;           // 结束年龄
   cangGan: string[];        // 地支藏干
+  naYin?: string;           // 纳音
 }
 
 /** 大运排盘结果 */

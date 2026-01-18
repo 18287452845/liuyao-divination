@@ -279,7 +279,8 @@ export function calculateDaYun(
         gan: TIAN_GAN_WU_XING[gan],
         zhi: DI_ZHI_WU_XING[zhi]
       },
-      naYin: getNaYin(ganZhi)
+      naYin: getNaYin(ganZhi),
+      cangGan: DI_ZHI_CANG_GAN[zhi]
     };
 
     // 如果提供了日干，计算大运的十神

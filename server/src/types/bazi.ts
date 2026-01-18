@@ -217,7 +217,8 @@ export interface DaYunStep {
     gan: ShiShen;           // 天干十神
     zhi: ShiShen;           // 地支十神
   };
-  naYin?: string;           // 纳音
+  naYin: string;           // 纳音
+  cangGan: string[];       // 地支藏干
 }
 
 /**
@@ -283,7 +284,7 @@ export interface BaziRecord {
  */
 export interface BaziRecordParsed extends Omit<BaziRecord, 'bazi_data' | 'dayun_data'> {
   baziData: BaZiDecoration;     // 解析后的八字数据
-  dayunData?: DaYunStep[];      // 解析后的大运数据
+  dayunData?: DaYunResult;      // 解析后的大运数据
 }
 
 /**

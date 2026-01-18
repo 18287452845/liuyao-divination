@@ -131,7 +131,9 @@ export async function createBazi(req: Request, res: Response): Promise<void> {
       },
       shiShen: decorated.shiShen,
       wuXing: decorated.wuXing,
-      relations: decorated.relations
+      relations: decorated.relations,
+      shenSha: decorated.shenSha,
+      kongWang: decorated.kongWang
     };
 
     const sql = `
@@ -179,6 +181,8 @@ export async function createBazi(req: Request, res: Response): Promise<void> {
         shiShen: decorated.shiShen,
         wuXing: decorated.wuXing,
         relations: decorated.relations,
+        shenSha: decorated.shenSha,
+        kongWang: decorated.kongWang,
         dayun: dayun.steps,
         qiyunAge: dayun.qiyunAge
       }
@@ -598,6 +602,8 @@ export async function calculatePillars(req: Request, res: Response): Promise<voi
         shiShen: decorated.shiShen,
         wuXing: decorated.wuXing,
         relations: decorated.relations,
+        shenSha: decorated.shenSha,
+        kongWang: decorated.kongWang,
         dayun: dayun.steps,
         qiyunAge: dayun.qiyunAge
       }

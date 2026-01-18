@@ -97,6 +97,13 @@ const DayunDisplay: React.FC<DayunDisplayProps> = ({
           )}
         </div>
 
+        {/* 纳音 */}
+        {step.naYin && (
+          <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full mb-2">
+            {step.naYin}
+          </div>
+        )}
+
         {/* 地支十神 */}
         {showDetails && step.shiShen && (
           <div
@@ -261,15 +268,20 @@ const DayunDisplay: React.FC<DayunDisplayProps> = ({
                         </span>
                         <span className="text-gray-400 mx-1">/</span>
                         <span style={{ color: SHISHEN_COLORS[step.shiShen.zhi] }}>
-                          {step.shiShen.zhi}
-                        </span>
-                      </div>
-                    )}
-                    {isCurrent && (
-                      <span className="px-2 py-1 bg-blue-500 text-white text-xs font-bold rounded">
-                        当前
+                        {step.shiShen.zhi}
                       </span>
-                    )}
+                    </div>
+                  )}
+                  {step.naYin && (
+                    <div className="text-sm px-2 py-1 bg-blue-50 text-blue-700 rounded">
+                      纳音：{step.naYin}
+                    </div>
+                  )}
+                  {isCurrent && (
+                    <span className="px-2 py-1 bg-blue-500 text-white text-xs font-bold rounded">
+                      当前
+                    </span>
+                  )}
                   </div>
                 </div>
               );
