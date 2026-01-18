@@ -105,6 +105,9 @@ export interface GuaDecoration {
   fuShens: FuShen[];
   // 应期推断
   yingQi: YingQi[];
+  // 卦辞和爻辞（从gua_data表加载）
+  guaCi?: string;               // 卦辞（原文+白话）
+  yaoCi?: string[];             // 爻辞数组（6个，原文+白话）
 }
 
 // 完整卦象记录

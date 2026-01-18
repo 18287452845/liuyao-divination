@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { DivinationRecordModel } from '../models/database';
+import { DivinationRecordModel, GuaDataModel } from '../models/database';
 import {
   divinationByTime,
   divinationByNumbers,
@@ -125,14 +125,36 @@ export const getRecordById = async (req: Request, res: Response) => {
       return res.status(404).json({ error: '记录不存在' });
     }
 
+    const benGua = JSON.parse(row.ben_gua);
+    const decoration = JSON.parse(row.decoration);
+
+    // 查询卦辞和爻辞
+    const guaData: any = await GuaDataModel.findByName(benGua.name);
+
+    // 解析爻辞JSON
+    let yaoCi: string[] = [];
+    if (guaData && guaData.yao_ci) {
+      try {
+        yaoCi = JSON.parse(guaData.yao_ci);
+      } catch (e) {
+        console.error('解析爻辞JSON失败:', e);
+      }
+    }
+
+    // 将卦辞和爻辞添加到decoration对象
+    if (guaData) {
+      decoration.guaCi = guaData.gua_ci || '';
+      decoration.yaoCi = yaoCi;
+    }
+
     const record = {
       id: row.id,
       timestamp: row.timestamp,
       question: row.question,
       method: row.method,
-      benGua: JSON.parse(row.ben_gua),
+      benGua,
       bianGua: row.bian_gua ? JSON.parse(row.bian_gua) : null,
-      decoration: JSON.parse(row.decoration),
+      decoration,
       aiAnalysis: row.ai_analysis,
       createdAt: row.created_at
     };

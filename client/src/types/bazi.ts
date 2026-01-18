@@ -105,6 +105,39 @@ export interface DiZhiRelations {
   xiangHai: DiZhiRelation[]; // 相害关系
 }
 
+// ==================== 神煞分析 ====================
+
+/** 柱位类型 */
+export type PillarPosition = 'year' | 'month' | 'day' | 'hour';
+
+/** 神煞类别 */
+export type ShenShaCategory = '吉神' | '凶神' | '特殊';
+
+/** 神煞影响力 */
+export type ShenShaInfluence = '强' | '中' | '弱';
+
+/** 单个神煞信息 */
+export interface ShenSha {
+  name: string;                // 神煞名称
+  category: ShenShaCategory;   // 神煞类别
+  position: PillarPosition;    // 所在柱位
+  zhi: string;                 // 所在地支
+  description: string;         // 简短说明
+  influence: ShenShaInfluence; // 影响力
+}
+
+/** 神煞分析结果 */
+export interface ShenShaAnalysis {
+  jiShen: ShenSha[];          // 吉神列表
+  xiongShen: ShenSha[];       // 凶神列表
+  teShu: ShenSha[];           // 特殊神煞列表
+  summary: {
+    jiShenCount: number;      // 吉神数量
+    xiongShenCount: number;   // 凶神数量
+    balance: '吉多' | '凶多' | '平衡';  // 吉凶平衡度
+  };
+}
+
 // ==================== 大运信息 ====================
 
 /** 单步大运 */
@@ -140,6 +173,7 @@ export interface BaZiDecoration {
   shiShen: ShiShenAnalysis;         // 十神分析
   wuXing: WuXingAnalysis;           // 五行分析
   relations: DiZhiRelations;        // 地支关系
+  shenSha: ShenShaAnalysis;         // 神煞分析
   monthBranch: string;              // 月建地支
   dayGanZhi: string;                // 日干支
   kongWang: [string, string];       // 空亡地支

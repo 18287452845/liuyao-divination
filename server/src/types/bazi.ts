@@ -46,6 +46,16 @@ export type RelationType =
   | 'sanXing'    // 三刑
   | 'xiangHai';  // 相害
 
+/**
+ * 神煞类别
+ */
+export type ShenShaCategory = '吉神' | '凶神' | '特殊';
+
+/**
+ * 神煞影响力
+ */
+export type ShenShaInfluence = '强' | '中' | '弱';
+
 // ==================== 柱（Pillar）相关 ====================
 
 /**
@@ -146,6 +156,36 @@ export interface RelationsAnalysis {
   xiangHai: DiZhiRelation[]; // 相害关系列表
 }
 
+// ==================== 神煞相关 ====================
+
+/**
+ * 单个神煞信息
+ */
+export interface ShenSha {
+  name: string;                // 神煞名称
+  category: ShenShaCategory;   // 神煞类别（吉神/凶神/特殊）
+  position: PillarPosition;    // 所在柱位（年/月/日/时）
+  zhi: string;                 // 所在地支
+  description: string;         // 简短说明
+  influence: ShenShaInfluence; // 影响力（强/中/弱）
+}
+
+/**
+ * 神煞分析结果
+ */
+export interface ShenShaAnalysis {
+  jiShen: ShenSha[];          // 吉神列表
+  xiongShen: ShenSha[];       // 凶神列表
+  teShu: ShenSha[];           // 特殊神煞列表
+  summary: {
+    jiShenCount: number;      // 吉神数量
+    xiongShenCount: number;   // 凶神数量
+    balance: '吉多' | '凶多' | '平衡';  // 吉凶平衡度
+  };
+}
+
+// ==================== 完整装饰数据 ====================
+
 /**
  * 八字完整装饰数据（包含所有分析结果）
  */
@@ -154,6 +194,8 @@ export interface BaZiDecoration {
   shiShen: ShiShenAnalysis;         // 十神分析
   wuXing: WuXingAnalysis;           // 五行分析
   relations: RelationsAnalysis;     // 地支关系分析
+  shenSha: ShenShaAnalysis;         // 神煞分析
+  kongWang: [string, string];       // 空亡（旬空）两个地支
 }
 
 // ==================== 大运相关 ====================

@@ -236,6 +236,63 @@ const PaidianPage: React.FC = () => {
         </div>
       )}
 
+      {/* 卦辞显示 */}
+      {record.decoration?.guaCi && (
+        <div className="card mb-8">
+          <h2 className="text-2xl font-bold mb-4 text-gray-800 flex items-center">
+            <span className="mr-2">📜</span>
+            卦辞
+          </h2>
+          <div className="bg-amber-50 border border-amber-200 p-6 rounded-lg">
+            <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+              {record.decoration.guaCi}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 爻辞显示 */}
+      {record.decoration?.yaoCi && record.decoration.yaoCi.length > 0 && (
+        <div className="card mb-8">
+          <h2 className="text-2xl font-bold mb-4 text-gray-800 flex items-center">
+            <span className="mr-2">📖</span>
+            爻辞
+            <span className="ml-2 text-xs text-gray-500 font-normal">（从下往上依次为初、二、三、四、五、上爻）</span>
+          </h2>
+          <div className="space-y-4">
+            {record.decoration.yaoCi.map((yao, idx) => (
+              <div
+                key={idx}
+                className="bg-blue-50 border border-blue-200 p-5 rounded-lg hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-center mb-3">
+                  <span className="inline-block bg-blue-600 text-white font-bold px-3 py-1 rounded-full text-sm mr-3">
+                    {['初', '二', '三', '四', '五', '上'][idx]}爻
+                  </span>
+                  {record.benGua.changes[idx] && (
+                    <span className="inline-block bg-red-500 text-white text-xs font-semibold px-2 py-1 rounded">
+                      动爻
+                    </span>
+                  )}
+                </div>
+                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                  {yao}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 p-3 bg-blue-50 border-l-4 border-blue-500 rounded-r text-sm text-gray-600">
+            <p className="mb-1">
+              <strong>💡 爻辞说明：</strong>
+            </p>
+            <p className="text-xs leading-relaxed">
+              爻辞是周易对每一爻的判断和说明。六爻从下往上依次为：初爻、二爻、三爻、四爻、五爻、上爻。
+              动爻的爻辞对占断尤为重要，需重点参考。
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* 操作按钮 */}
       <div className="flex flex-wrap justify-center gap-4">
         <button

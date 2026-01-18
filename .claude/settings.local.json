@@ -116,7 +116,13 @@
       "Bash(npx tsc:*)",
       "Bash(npx vite build)",
       "Bash(node_modules/.bin/vite build:*)",
-      "Bash(gh run list:*)"
+      "Bash(gh run list:*)",
+      "Bash(docker compose ps:*)",
+      "Bash(docker compose exec:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker rmi:*)",
+      "Bash(npm run build:*)",
+      "Bash(docker-compose down:*)"
     ],
     "deny": [],
     "ask": []

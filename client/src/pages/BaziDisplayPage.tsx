@@ -217,6 +217,128 @@ const BaziDisplayPage: React.FC = () => {
           </p>
         </div>
       )}
+
+      {/* 神煞分析 */}
+      {record.baziData.shenSha && (
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">神煞分析</h2>
+
+          {/* 吉凶平衡总览 */}
+          <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center">
+                <span className="text-sm text-gray-600 mr-2">吉神：</span>
+                <span className="text-lg font-bold text-green-600">
+                  {record.baziData.shenSha.summary.jiShenCount}个
+                </span>
+              </div>
+              <div className="flex items-center">
+                <span className="text-sm text-gray-600 mr-2">凶神：</span>
+                <span className="text-lg font-bold text-red-600">
+                  {record.baziData.shenSha.summary.xiongShenCount}个
+                </span>
+              </div>
+              <div className="flex items-center">
+                <span className="text-sm text-gray-600 mr-2">平衡：</span>
+                <span className={`text-lg font-bold ${
+                  record.baziData.shenSha.summary.balance === '吉多' ? 'text-green-600' :
+                  record.baziData.shenSha.summary.balance === '凶多' ? 'text-red-600' :
+                  'text-blue-600'
+                }`}>
+                  {record.baziData.shenSha.summary.balance}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 吉神列表 */}
+          {record.baziData.shenSha.jiShen.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-bold text-green-700 mb-3 flex items-center">
+                <span className="mr-2">✨</span>吉神
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {record.baziData.shenSha.jiShen.map((shen, idx) => (
+                  <div key={idx} className="p-4 bg-green-50 border border-green-200 rounded-lg hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-bold text-green-800">{shen.name}</span>
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        shen.influence === '强' ? 'bg-green-200 text-green-900' :
+                        shen.influence === '中' ? 'bg-green-100 text-green-800' :
+                        'bg-green-50 text-green-700'
+                      }`}>
+                        {shen.influence}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-1">
+                      位于：{shen.position === 'year' ? '年柱' : shen.position === 'month' ? '月柱' : shen.position === 'day' ? '日柱' : '时柱'}（{shen.zhi}）
+                    </div>
+                    <div className="text-sm text-gray-700">{shen.description}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 凶神列表 */}
+          {record.baziData.shenSha.xiongShen.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-bold text-red-700 mb-3 flex items-center">
+                <span className="mr-2">⚠️</span>凶神
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {record.baziData.shenSha.xiongShen.map((shen, idx) => (
+                  <div key={idx} className="p-4 bg-red-50 border border-red-200 rounded-lg hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-bold text-red-800">{shen.name}</span>
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        shen.influence === '强' ? 'bg-red-200 text-red-900' :
+                        shen.influence === '中' ? 'bg-red-100 text-red-800' :
+                        'bg-red-50 text-red-700'
+                      }`}>
+                        {shen.influence}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-1">
+                      位于：{shen.position === 'year' ? '年柱' : shen.position === 'month' ? '月柱' : shen.position === 'day' ? '日柱' : '时柱'}（{shen.zhi}）
+                    </div>
+                    <div className="text-sm text-gray-700">{shen.description}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 特殊神煞列表 */}
+          {record.baziData.shenSha.teShu.length > 0 && (
+            <div>
+              <h3 className="text-lg font-bold text-blue-700 mb-3 flex items-center">
+                <span className="mr-2">🔮</span>特殊神煞
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {record.baziData.shenSha.teShu.map((shen, idx) => (
+                  <div key={idx} className="p-4 bg-blue-50 border border-blue-200 rounded-lg hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-bold text-blue-800">{shen.name}</span>
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        shen.influence === '强' ? 'bg-blue-200 text-blue-900' :
+                        shen.influence === '中' ? 'bg-blue-100 text-blue-800' :
+                        'bg-blue-50 text-blue-700'
+                      }`}>
+                        {shen.influence}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-1">
+                      位于：{shen.position === 'year' ? '年柱' : shen.position === 'month' ? '月柱' : shen.position === 'day' ? '日柱' : '时柱'}（{shen.zhi}）
+                    </div>
+                    <div className="text-sm text-gray-700">{shen.description}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

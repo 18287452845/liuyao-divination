@@ -18,7 +18,10 @@ import {
   BaZiDecoration,
   Gender,
   WuXing,
-  ShiShen
+  ShiShen,
+  ShenSha,
+  ShenShaAnalysis,
+  PillarPosition
 } from '../types/bazi';
 import {
   TIAN_GAN,
@@ -36,8 +39,25 @@ import {
   DI_ZHI_LIU_CHONG,
   DI_ZHI_SAN_XING,
   DI_ZHI_XIANG_HAI,
-  getNaYin
+  getNaYin,
+  // 神煞查法常量
+  TIAN_YI_GUI_REN,
+  TIAN_DE_GUI_REN,
+  YUE_DE_GUI_REN,
+  WEN_CHANG_GUI_REN,
+  LU_SHEN,
+  HONG_LUAN,
+  TIAN_XI,
+  YANG_REN,
+  TAO_HUA,
+  GU_CHEN,
+  GUA_SU,
+  JIE_SHA,
+  ZAI_SHA,
+  YI_MA,
+  HUA_GAI
 } from './baziConstants';
+import { KONG_WANG_MAP } from './constants';
 
 // ==================== 核心函数：计算八字 ====================
 
@@ -499,6 +519,358 @@ export function analyzeRelations(bazi: BaZi): RelationsAnalysis {
   };
 }
 
+// ==================== 空亡计算 ====================
+
+/**
+ * 计算八字空亡（旬空）
+ *
+ * 空亡原理：
+ * - 六十甲子分六旬，每旬10个干支
+ * - 每旬由十天干配十二地支，剩余2个地支为空亡
+ * - 以日柱干支为准查找所在旬
+ * - 复用六爻系统的KONG_WANG_MAP
+ *
+ * @param dayGanZhi 日柱干支（如"甲子"）
+ * @returns 空亡的两个地支，如["戌", "亥"]
+ */
+export function calculateBaziKongWang(dayGanZhi: string): [string, string] {
+  const dayGan = dayGanZhi[0];
+  const dayZhi = dayGanZhi[1];
+
+  const ganIndex = TIAN_GAN.indexOf(dayGan as any);
+  const zhiIndex = DI_ZHI.indexOf(dayZhi as any);
+
+  // 计算旬首地支索引
+  const xunZhiIndex = (zhiIndex - ganIndex + 12) % 12;
+  const xunZhi = DI_ZHI[xunZhiIndex];
+  const xunShou = dayGan + xunZhi;
+
+  // 从KONG_WANG_MAP查找空亡地支
+  return KONG_WANG_MAP[xunShou] || ['戌', '亥'];
+}
+
+// ==================== 神煞计算 ====================
+
+/**
+ * 计算八字神煞
+ *
+ * 神煞是传统命理学中的吉凶神煞，共16种常用神煞：
+ * - 吉神8个：天乙贵人、天德贵人、月德贵人、文昌贵人、禄神、红鸾、天喜
+ * - 凶神6个：羊刃、桃花、孤辰、寡宿、劫煞、灾煞
+ * - 特殊2个：驿马、华盖
+ *
+ * @param bazi 八字信息
+ * @returns 神煞分析结果
+ */
+export function calculateShenSha(bazi: BaZi): ShenShaAnalysis {
+  const jiShen: ShenSha[] = [];
+  const xiongShen: ShenSha[] = [];
+  const teShu: ShenSha[] = [];
+
+  const riGan = bazi.day.gan;
+  const riZhi = bazi.day.zhi;
+  const nianZhi = bazi.year.zhi;
+  const yueZhi = bazi.month.zhi;
+
+  const pillars: Array<{ position: PillarPosition; gan: string; zhi: string }> = [
+    { position: 'year', gan: bazi.year.gan, zhi: bazi.year.zhi },
+    { position: 'month', gan: bazi.month.gan, zhi: bazi.month.zhi },
+    { position: 'day', gan: bazi.day.gan, zhi: bazi.day.zhi },
+    { position: 'hour', gan: bazi.hour.gan, zhi: bazi.hour.zhi }
+  ];
+
+  // 1. 天乙贵人（吉神，影响力：强）
+  const tianYiZhis = TIAN_YI_GUI_REN[riGan] || [];
+  pillars.forEach(p => {
+    if (tianYiZhis.includes(p.zhi)) {
+      jiShen.push({
+        name: '天乙贵人',
+        category: '吉神',
+        position: p.position,
+        zhi: p.zhi,
+        description: '遇难呈祥，逢凶化吉，是最重要的吉星',
+        influence: '强'
+      });
+    }
+  });
+
+  // 2. 天德贵人（吉神，影响力：强）
+  const tianDeZhi = TIAN_DE_GUI_REN[yueZhi];
+  if (tianDeZhi) {
+    pillars.forEach(p => {
+      // 天德可以是天干也可以是地支，这里简化为查地支或天干
+      if (p.zhi === tianDeZhi || p.gan === tianDeZhi) {
+        jiShen.push({
+          name: '天德贵人',
+          category: '吉神',
+          position: p.position,
+          zhi: p.zhi,
+          description: '化险为夷，福德深厚',
+          influence: '强'
+        });
+      }
+    });
+  }
+
+  // 3. 月德贵人（吉神，影响力：中）
+  const yueDeGan = YUE_DE_GUI_REN[yueZhi];
+  if (yueDeGan) {
+    pillars.forEach(p => {
+      if (p.gan === yueDeGan) {
+        jiShen.push({
+          name: '月德贵人',
+          category: '吉神',
+          position: p.position,
+          zhi: p.zhi,
+          description: '福德之星，利于功名事业',
+          influence: '中'
+        });
+      }
+    });
+  }
+
+  // 4. 文昌贵人（吉神，影响力：中）
+  const wenChangZhi = WEN_CHANG_GUI_REN[riGan];
+  if (wenChangZhi) {
+    pillars.forEach(p => {
+      if (p.zhi === wenChangZhi) {
+        jiShen.push({
+          name: '文昌贵人',
+          category: '吉神',
+          position: p.position,
+          zhi: p.zhi,
+          description: '聪明好学，利考试功名，文采斐然',
+          influence: '中'
+        });
+      }
+    });
+  }
+
+  // 5. 禄神（吉神，影响力：中）
+  const luShenZhi = LU_SHEN[riGan];
+  if (luShenZhi) {
+    pillars.forEach(p => {
+      if (p.zhi === luShenZhi) {
+        jiShen.push({
+          name: '禄神',
+          category: '吉神',
+          position: p.position,
+          zhi: p.zhi,
+          description: '财禄丰厚，衣食无忧',
+          influence: '中'
+        });
+      }
+    });
+  }
+
+  // 6. 红鸾（吉神，影响力：弱）
+  const hongLuanZhi = HONG_LUAN[nianZhi];
+  if (hongLuanZhi) {
+    pillars.forEach(p => {
+      if (p.zhi === hongLuanZhi) {
+        jiShen.push({
+          name: '红鸾',
+          category: '吉神',
+          position: p.position,
+          zhi: p.zhi,
+          description: '婚姻喜庆，姻缘美满',
+          influence: '弱'
+        });
+      }
+    });
+  }
+
+  // 7. 天喜（吉神，影响力：弱）
+  const tianXiZhi = TIAN_XI[nianZhi];
+  if (tianXiZhi) {
+    pillars.forEach(p => {
+      if (p.zhi === tianXiZhi) {
+        jiShen.push({
+          name: '天喜',
+          category: '吉神',
+          position: p.position,
+          zhi: p.zhi,
+          description: '喜事临门，心情愉悦',
+          influence: '弱'
+        });
+      }
+    });
+  }
+
+  // 8. 羊刃（凶神，影响力：强）
+  const yangRenZhi = YANG_REN[riGan];
+  if (yangRenZhi) {
+    pillars.forEach(p => {
+      if (p.zhi === yangRenZhi) {
+        xiongShen.push({
+          name: '羊刃',
+          category: '凶神',
+          position: p.position,
+          zhi: p.zhi,
+          description: '性格刚烈，易有血光之灾，但也主武职权威',
+          influence: '强'
+        });
+      }
+    });
+  }
+
+  // 9. 桃花（凶神偏中性，影响力：中）
+  const taoHuaZhi = TAO_HUA[riZhi];
+  const taoHuaZhiNian = TAO_HUA[nianZhi];
+  [taoHuaZhi, taoHuaZhiNian].forEach(targetZhi => {
+    if (targetZhi) {
+      pillars.forEach(p => {
+        if (p.zhi === targetZhi && !xiongShen.find(s => s.name === '桃花' && s.position === p.position)) {
+          xiongShen.push({
+            name: '桃花',
+            category: '凶神',
+            position: p.position,
+            zhi: p.zhi,
+            description: '异性缘佳，但易有桃色纠纷',
+            influence: '中'
+          });
+        }
+      });
+    }
+  });
+
+  // 10. 孤辰（凶神，影响力：中）
+  const guChenZhi = GU_CHEN[nianZhi];
+  if (guChenZhi) {
+    pillars.forEach(p => {
+      if (p.zhi === guChenZhi) {
+        xiongShen.push({
+          name: '孤辰',
+          category: '凶神',
+          position: p.position,
+          zhi: p.zhi,
+          description: '性格孤独，六亲缘薄',
+          influence: '中'
+        });
+      }
+    });
+  }
+
+  // 11. 寡宿（凶神，影响力：中）
+  const guaSuZhi = GUA_SU[nianZhi];
+  if (guaSuZhi) {
+    pillars.forEach(p => {
+      if (p.zhi === guaSuZhi) {
+        xiongShen.push({
+          name: '寡宿',
+          category: '凶神',
+          position: p.position,
+          zhi: p.zhi,
+          description: '婚姻不利，易孤独寂寞',
+          influence: '中'
+        });
+      }
+    });
+  }
+
+  // 12. 劫煞（凶神，影响力：弱）
+  const jieShaZhi = JIE_SHA[riZhi];
+  const jieShaZhiNian = JIE_SHA[nianZhi];
+  [jieShaZhi, jieShaZhiNian].forEach(targetZhi => {
+    if (targetZhi) {
+      pillars.forEach(p => {
+        if (p.zhi === targetZhi && !xiongShen.find(s => s.name === '劫煞' && s.position === p.position)) {
+          xiongShen.push({
+            name: '劫煞',
+            category: '凶神',
+            position: p.position,
+            zhi: p.zhi,
+            description: '破财之兆，需防盗窃劫夺',
+            influence: '弱'
+          });
+        }
+      });
+    }
+  });
+
+  // 13. 灾煞（凶神，影响力：弱）
+  const zaiShaZhi = ZAI_SHA[riZhi];
+  const zaiShaZhiNian = ZAI_SHA[nianZhi];
+  [zaiShaZhi, zaiShaZhiNian].forEach(targetZhi => {
+    if (targetZhi) {
+      pillars.forEach(p => {
+        if (p.zhi === targetZhi && !xiongShen.find(s => s.name === '灾煞' && s.position === p.position)) {
+          xiongShen.push({
+            name: '灾煞',
+            category: '凶神',
+            position: p.position,
+            zhi: p.zhi,
+            description: '意外灾难，血光之灾',
+            influence: '弱'
+          });
+        }
+      });
+    }
+  });
+
+  // 14. 驿马（特殊，影响力：中）
+  const yiMaZhi = YI_MA[riZhi];
+  const yiMaZhiNian = YI_MA[nianZhi];
+  [yiMaZhi, yiMaZhiNian].forEach(targetZhi => {
+    if (targetZhi) {
+      pillars.forEach(p => {
+        if (p.zhi === targetZhi && !teShu.find(s => s.name === '驿马' && s.position === p.position)) {
+          teShu.push({
+            name: '驿马',
+            category: '特殊',
+            position: p.position,
+            zhi: p.zhi,
+            description: '奔波变动，出外走动，利于旅行迁移',
+            influence: '中'
+          });
+        }
+      });
+    }
+  });
+
+  // 15. 华盖（特殊，影响力：中）
+  const huaGaiZhi = HUA_GAI[riZhi];
+  const huaGaiZhiNian = HUA_GAI[nianZhi];
+  [huaGaiZhi, huaGaiZhiNian].forEach(targetZhi => {
+    if (targetZhi) {
+      pillars.forEach(p => {
+        if (p.zhi === targetZhi && !teShu.find(s => s.name === '华盖' && s.position === p.position)) {
+          teShu.push({
+            name: '华盖',
+            category: '特殊',
+            position: p.position,
+            zhi: p.zhi,
+            description: '聪明清高，利于宗教艺术，但易孤独',
+            influence: '中'
+          });
+        }
+      });
+    }
+  });
+
+  // 计算吉凶平衡度
+  const jiShenCount = jiShen.length;
+  const xiongShenCount = xiongShen.length;
+  let balance: '吉多' | '凶多' | '平衡' = '平衡';
+
+  if (jiShenCount > xiongShenCount + 2) {
+    balance = '吉多';
+  } else if (xiongShenCount > jiShenCount + 2) {
+    balance = '凶多';
+  }
+
+  return {
+    jiShen,
+    xiongShen,
+    teShu,
+    summary: {
+      jiShenCount,
+      xiongShenCount,
+      balance
+    }
+  };
+}
+
 // ==================== 组装完整八字装饰数据 ====================
 
 /**
@@ -511,12 +883,16 @@ export function decorateBazi(bazi: BaZi): BaZiDecoration {
   const shiShen = calculateShiShen(bazi);
   const wuXing = analyzeWuXing(bazi);
   const relations = analyzeRelations(bazi);
+  const shenSha = calculateShenSha(bazi);
+  const kongWang = calculateBaziKongWang(bazi.day.ganZhi);
 
   return {
     bazi,
     shiShen,
     wuXing,
-    relations
+    relations,
+    shenSha,
+    kongWang
   };
 }
 

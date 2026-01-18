@@ -101,6 +101,11 @@ ${dayunData.slice(0, 5).map((step, index) =>
 - 强调"命运可以改变"的积极态度
 - 使用Markdown格式，结构清晰
 
+**禁止事项**：
+- 禁止在回答末尾添加任何免责声明或AI署名
+- 禁止输出类似"以上内容由XX生成"、"仅供参考"等声明
+- 直接给出专业分析内容，无需说明内容来源
+
 请按以上要求对以下八字进行详细批注：`;
 
   const userPrompt = baziInfo + (question ? `\n\n【特别关注】：${question}` : '');
