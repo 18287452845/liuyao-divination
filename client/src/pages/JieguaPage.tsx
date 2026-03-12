@@ -53,7 +53,10 @@ const JieguaPage: React.FC = () => {
           benGua: record.benGua,
           bianGua: record.bianGua,
           decoration: record.decoration,
-          question: record.question
+          question: record.question,
+          gender: record.gender,
+          bazi: record.bazi,
+          timestamp: record.timestamp
         },
         (content) => {
           setAnalysis((prev) => prev + content);
@@ -121,6 +124,16 @@ const JieguaPage: React.FC = () => {
     }
   }, [analyzing, analysis, id]);
 
+  const formatBazi = (bazi?: DivinationRecord['bazi']) => {
+    if (!bazi) return '';
+    const parts: string[] = [];
+    if (bazi.year) parts.push(`年柱 ${bazi.year}`);
+    if (bazi.month) parts.push(`月柱 ${bazi.month}`);
+    if (bazi.day) parts.push(`日柱 ${bazi.day}`);
+    if (bazi.hour) parts.push(`时柱 ${bazi.hour}`);
+    return parts.join(' | ');
+  };
+
   if (loading) {
     return (
       <>
@@ -163,6 +176,10 @@ const JieguaPage: React.FC = () => {
           <div className="card">
             <h2 className="text-xl font-semibold mb-4 text-gray-700">占问事项</h2>
             <p className="text-lg text-gray-800">{record.question}</p>
+            <p className="text-sm text-gray-600 mt-2">性别：{record.gender || '未知'}</p>
+            {formatBazi(record.bazi) && (
+              <p className="text-sm text-gray-600 mt-1">八字：{formatBazi(record.bazi)}</p>
+            )}
             <p className="text-sm text-gray-500 mt-2">
               {new Date(record.timestamp).toLocaleString('zh-CN')}
             </p>
