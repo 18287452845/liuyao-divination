@@ -4,14 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a traditional Chinese Liuyao (六爻) divination system combining modern web technologies with AI-powered interpretation. The system provides three divination methods (time-based, number-based, manual coin-tossing simulation), generates complete hexagram layouts, and integrates with DeepSeek API for intelligent analysis.
+This is a traditional Chinese divination system combining modern web technologies with AI-powered interpretation. It includes:
+- **Liuyao (六爻)** - Six Lines divination with three methods (time-based, number-based, manual coin-tossing)
+- **Bazi (八字)** - Four Pillars of Destiny with complete chart calculation and AI analysis
+
+The system generates complete hexagram/Bazi layouts and integrates with DeepSeek API for intelligent interpretation.
 
 **Tech Stack:**
 - Frontend: React 18 + TypeScript + Vite + Tailwind CSS + React Router v6
 - Backend: Node.js + Express + TypeScript
 - Database: MySQL 5.7+
 - Authentication: JWT-based auth with bcrypt password hashing
-- AI: DeepSeek API for hexagram interpretation
+- AI: DeepSeek API for hexagram and Bazi interpretation
 
 ## Development Commands
 
@@ -43,6 +47,18 @@ cd client && npm run build
 
 # Build backend
 cd server && npm run build
+
+# Preview production build (frontend)
+cd client && npm run preview
+
+# Production mode (backend)
+cd server && npm run start
+```
+
+### Database Verification
+```bash
+# Verify and auto-repair database
+cd server && npm run verify:db
 ```
 
 ### Database Setup
@@ -104,6 +120,20 @@ lt/
 - Determines Shi (世) and Ying (应) positions
 - Critical for Six Relatives calculation
 
+**Bazi (八字) Calculation Flow (`server/src/utils/bazi.ts`):**
+1. Convert birth datetime to lunar calendar using `lunar-javascript`
+2. Calculate Four Pillars (四柱): Year, Month, Day, Hour stems and branches
+3. Determine Day Master (日主) from day stem
+4. Calculate Ten Gods (十神) for each stem/branch based on relationship to Day Master
+5. Analyze Five Elements (五行) strength: count occurrences, determine strong/weak
+6. Identify Yongshen (用神) and Jishen (忌神) - favorable/unfavorable elements
+7. Calculate Nayin (纳音) for each pillar
+8. Compute Dayun (大运) - major luck periods:
+   - Determine forward/backward direction based on gender and year stem polarity
+   - Calculate starting age from birth to next solar term
+   - Generate 8 luck periods with stems and branches
+9. Store complete Bazi chart as JSON in database
+
 ### Database Schema
 
 **Main Tables:**
@@ -125,6 +155,9 @@ lt/
 **Supporting Tables:**
 - `trigrams` - Eight basic trigrams reference data
 - `gua_data` - 64 hexagrams with names and traditional texts
+- `bazi_records` - Bazi (八字) records with four pillars, ten gods, dayun
+- `jie_qi_data` - Solar terms for precise dayun calculation
+- `liu_shi_jia_zi` - 60 Jiazi table with nayin elements
 - `login_logs` - User login history and security tracking
 - `operation_logs` - User activity audit trail
 - `user_sessions` - Active session management
@@ -141,6 +174,9 @@ lt/
 - `PaidianPage.tsx` - Hexagram display page (排盘 = layout/arrangement)
 - `JieguaPage.tsx` - AI interpretation page (解卦 = interpretation)
 - `HistoryPage.tsx` - Historical records browser
+- `BaziInputPage.tsx` - Bazi (八字) input form
+- `BaziDisplayPage.tsx` - Bazi chart display with four pillars
+- `BaziHistoryPage.tsx` - Bazi records browser
 - `ToolsPage.tsx` - Various utilities (calendar conversion, branch relations, etc.)
 - `ApiKeySettingsPage.tsx` - User's personal DeepSeek API key management
 - `ChangePasswordPage.tsx` - Password change functionality
@@ -172,6 +208,13 @@ lt/
 4. User clicks "AI Analysis" → POST `/api/ai/analyze` (SSE stream)
 5. Save to history → available in HistoryPage
 
+**Bazi Data Flow:**
+1. User inputs birth info → POST `/api/bazi`
+2. Backend calculates complete Bazi chart with all attributes
+3. Navigate to BaziDisplayPage to display chart
+4. User clicks "AI Analysis" → POST `/api/bazi/ai/analyze` (SSE stream)
+5. Save to history → available in BaziHistoryPage
+
 ### Backend Architecture
 
 **Route Organization (`server/src/routes/index.ts`):**
@@ -182,6 +225,7 @@ All API routes are centrally defined and protected by authentication/authorizati
 - `/api/divination/*` - Divination operations (create, simulate)
 - `/api/records/*` - Record management (CRUD, verification feedback)
 - `/api/ai/*` - AI analysis (streaming SSE)
+- `/api/bazi/*` - Bazi operations (create, records, AI analysis)
 - `/api/tools/*` - Utility functions (calendar, branch relations, gua lookup)
 - `/api/users/*` - User management (admin only)
 - `/api/roles/*` - Role management (admin only)
@@ -203,6 +247,7 @@ All API routes are centrally defined and protected by authentication/authorizati
 **Controllers (`server/src/controllers/`):**
 - `authController.ts` - Authentication and user profile
 - `divinationController.ts` - Divination logic and records
+- `baziController.ts` - Bazi (八字) chart calculation and management
 - `aiController.ts` - AI analysis with SSE streaming
 - `userController.ts` - User CRUD operations
 - `roleController.ts` - Role and permission management
@@ -299,6 +344,16 @@ Determined by relationship between line's Five Element and hexagram palace's Fiv
 - Young Yang/Yin don't change
 - Moving lines are marked in `changes` array
 
+### Bazi Ten Gods (十神)
+Relationship between elements and the Day Master (日主):
+- Same element: Bi Jian (比肩) / Jie Cai (劫财) - same/opposite polarity
+- Element Day Master produces: Shi Shen (食神) / Shang Guan (伤官)
+- Element that produces Day Master: Zheng Yin (正印) / Pian Yin (偏印)
+- Element Day Master controls: Zheng Cai (正财) / Pian Cai (偏财)
+- Element that controls Day Master: Zheng Guan (正官) / Qi Sha (七杀)
+
+**Implementation:** `calculateShiShen()` in `bazi.ts`
+
 ### AI Analysis Integration
 
 **Streaming Response:** Uses Server-Sent Events (SSE)
@@ -338,6 +393,17 @@ eventSource.onmessage = (event) => {
    ```
 
 4. Add UI: `client/src/pages/DivinationPage.tsx`
+
+### Modifying Bazi Calculations
+
+Core Bazi logic is in `server/src/utils/bazi.ts`. Key functions:
+- `calculateBazi()` - Main entry point for Bazi calculation
+- `calculateSiZhu()` - Calculate four pillars from birth datetime
+- `calculateShiShen()` - Calculate ten gods relationships
+- `calculateWuXingStrength()` - Analyze five elements strength
+- `calculateDayun()` - Calculate major luck periods
+
+The `lunar-javascript` library handles calendar conversions and solar terms.
 
 ### Modifying Hexagram Attributes
 
@@ -606,18 +672,16 @@ Verify:
 ## Additional Documentation
 
 - `README.md` - Project overview and basic setup (Chinese)
-- `QUICKSTART.md` - Quick start guide (if exists)
-- `PROJECT_DOCUMENTATION.md` - Comprehensive technical documentation (if exists)
 - `DEEPSEEK_CONFIG.md` - DeepSeek API configuration guide
 - `DOCKER_DEPLOYMENT.md` - Docker deployment guide (recommended for production)
 - `doc/DEPLOYMENT.md` - Comprehensive deployment documentation
 - `doc/DEPLOYMENT_CHECKLIST.md` - Pre-deployment checklist
-- `server/sql/README.md` - Database schema documentation (if exists)
 - `server/src/utils/najia_reference.md` - Traditional Najia reference
 
 ## Project Status
 
 **Recent Additions:**
+- ✅ Complete Bazi (八字批命) system with four pillars, ten gods, dayun
 - ✅ Complete authentication and authorization system (JWT + RBAC)
 - ✅ Admin dashboard with user, role, and permission management
 - ✅ Session management and login security
@@ -632,7 +696,8 @@ Verify:
 **Core Features:**
 - Three divination methods (time, number, manual)
 - Complete Liuyao hexagram generation with traditional attributes
-- AI-powered interpretation via DeepSeek API
-- Historical record management
+- Complete Bazi (八字) chart calculation with four pillars, ten gods, dayun
+- AI-powered interpretation via DeepSeek API (Liuyao and Bazi)
+- Historical record management (Liuyao and Bazi)
 - Utility tools (calendar conversion, branch relations, hexagram lookup)
 
