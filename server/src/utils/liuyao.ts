@@ -210,16 +210,28 @@ export function divinationByInput(lines: number[], changes: boolean[]): Gua {
   };
 }
 
+function getTrigramLines(trigramName: string): [YaoType, YaoType, YaoType] {
+  const rawLines = TRIGRAMS[trigramName]?.lines || TRIGRAMS['乾'].lines;
+  return [...rawLines].reverse() as [YaoType, YaoType, YaoType];
+}
+
+function composeLinesFromTrigrams(
+  upperTrigram: string,
+  lowerTrigram: string
+): [YaoType, YaoType, YaoType, YaoType, YaoType, YaoType] {
+  return [
+    ...getTrigramLines(lowerTrigram),
+    ...getTrigramLines(upperTrigram)
+  ] as [YaoType, YaoType, YaoType, YaoType, YaoType, YaoType];
+}
+
 // 创建卦象
 function createGua(upperIndex: number, lowerIndex: number, changeIndex: number): Gua {
   const trigramNames = Object.keys(TRIGRAMS);
   const upperTrigram = trigramNames[upperIndex];
   const lowerTrigram = trigramNames[lowerIndex];
 
-  const upperLines = TRIGRAMS[upperTrigram].lines;
-  const lowerLines = TRIGRAMS[lowerTrigram].lines;
-
-  const lines = [...lowerLines, ...upperLines] as [YaoType, YaoType, YaoType, YaoType, YaoType, YaoType];
+  const lines = composeLinesFromTrigrams(upperTrigram, lowerTrigram);
   const changes = [false, false, false, false, false, false] as [boolean, boolean, boolean, boolean, boolean, boolean];
   changes[changeIndex] = true;
 
@@ -236,12 +248,50 @@ function createGua(upperIndex: number, lowerIndex: number, changeIndex: number):
 
 // 根据爻象查找卦名
 function findTrigramByLines(lines: number[]): string {
-  for (const [name, data] of Object.entries(TRIGRAMS)) {
-    if (JSON.stringify(data.lines) === JSON.stringify(lines)) {
+  for (const [name] of Object.entries(TRIGRAMS)) {
+    if (JSON.stringify(getTrigramLines(name)) === JSON.stringify(lines)) {
       return name;
     }
   }
   return '乾';
+}
+
+function rebuildGuaFromLines(gua: Gua): Gua {
+  const upperLines = Array.from(gua.lines.slice(3, 6));
+  const lowerLines = Array.from(gua.lines.slice(0, 3));
+  const upperTrigram = findTrigramByLines(upperLines);
+  const lowerTrigram = findTrigramByLines(lowerLines);
+
+  return {
+    ...gua,
+    name: getGuaName(upperTrigram, lowerTrigram),
+    trigrams: {
+      upper: upperTrigram,
+      lower: lowerTrigram
+    }
+  };
+}
+
+function rebuildGuaFromTrigrams(gua: Gua): Gua {
+  const { upper, lower } = gua.trigrams;
+
+  return {
+    ...gua,
+    name: getGuaName(upper, lower),
+    lines: composeLinesFromTrigrams(upper, lower)
+  };
+}
+
+export function normalizeGuaByMethod(gua: Gua | null, method?: string): Gua | null {
+  if (!gua) {
+    return null;
+  }
+
+  if (method === 'manual' || method === 'input') {
+    return rebuildGuaFromLines(gua);
+  }
+
+  return rebuildGuaFromTrigrams(gua);
 }
 
 // 获取卦名
