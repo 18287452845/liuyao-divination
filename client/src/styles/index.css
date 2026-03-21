@@ -42,16 +42,15 @@
   }
 
   .yao-line {
-    @apply h-4 rounded-sm transition-all duration-500 shadow-sm;
+    @apply h-4 rounded-sm transition-all duration-500 shadow-sm border border-stone-300/70;
   }
 
   .yao-yang {
-    @apply bg-gradient-to-r from-primary to-red-600;
+    @apply bg-gradient-to-r from-primary to-red-600 border-red-300/40;
   }
 
   .yao-yin {
-    @apply bg-gradient-to-r from-stone-800 to-stone-600;
-    background-image: linear-gradient(to right, transparent 40%, rgba(255,255,255,0.8) 40%, rgba(255,255,255,0.8) 60%, transparent 60%);
+    @apply bg-gradient-to-r from-stone-800 to-stone-600 border-stone-500/50;
   }
 
   /* Markdown内容样式 */

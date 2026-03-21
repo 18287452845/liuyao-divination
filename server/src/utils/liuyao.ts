@@ -730,7 +730,7 @@ function calculateYingQi(
       type: '近应',
       period: `${uniqueBranches.join('、')}日或${uniqueBranches.join('、')}月`,
       basis: [
-        '��爻值日应期',
+        '动爻值日应期',
         `动爻临${uniqueBranches.join('、')}，当这些地支当值之时应验`
       ],
       confidence: '高',
@@ -808,7 +808,7 @@ function calculateYingQi(
       ],
       confidence: '低',
       specificBranches: [],
-      description: '卦中六爻皆静��无动爻引动变化，事态多保持现状，若有应验则应期较远，或需外力触发。'
+      description: '卦中六爻皆静，无动爻引动变化，事态多保持现状，若有应验则应期较远，或需外力触发。'
     });
   }
 

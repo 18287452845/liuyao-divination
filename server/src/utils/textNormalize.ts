@@ -5,6 +5,7 @@ const EXACT_TEXT_MAP: Record<string, string> = {
   '鍚夊': '吉多',
   '鍑跺': '凶多',
   '骞宠　': '平衡',
+  '\uFFFD\uFFFD爻值日应期': '动爻值日应期',
 };
 
 const FRAGMENT_TEXT_MAP: Array<[string, string]> = [
@@ -62,6 +63,7 @@ const FRAGMENT_TEXT_MAP: Array<[string, string]> = [
   ['纭畾', '确定'],
   ['璇烽€夋嫨', '请选择'],
   ['鎬у埆', '性别'],
+  ['皆静\uFFFD\uFFFD无动爻引动变化', '皆静，无动爻引动变化'],
   ['鏈?', '木'],
   ['鐏?', '火'],
   ['鍦?', '土'],
@@ -80,6 +82,14 @@ export function normalizeLegacyText(value: string): string {
     if (normalized.includes(legacyText)) {
       normalized = normalized.split(legacyText).join(cleanText);
     }
+  }
+
+  if (/[?？\uFFFD]+爻值日应期/.test(normalized)) {
+    normalized = normalized.replace(/[?？\uFFFD]+爻值日应期/g, '动爻值日应期');
+  }
+
+  if (/皆静[?？\uFFFD]+无动爻引动变化/.test(normalized)) {
+    normalized = normalized.replace(/皆静[?？\uFFFD]+无动爻引动变化/g, '皆静，无动爻引动变化');
   }
 
   return normalized;
