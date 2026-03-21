@@ -1,9 +1,5 @@
-/**
- * 认证上下文
- * 管理全局的用户认证状态
- */
-
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+﻿import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { clearStoredAuth, fetchWithAutoRefresh } from '../utils/tokenRefresh';
 
 interface User {
   userId: string;
@@ -33,6 +29,14 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function formatApiError(data: any, fallback: string) {
+  if (Array.isArray(data?.errors) && data.errors.length > 0) {
+    return `${data.message || fallback}：${data.errors.join('；')}`;
+  }
+
+  return data?.message || fallback;
+}
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -50,20 +54,59 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 从localStorage恢复认证状态
-  useEffect(() => {
-    const storedToken = localStorage.getItem('accessToken');
-    const storedUser = localStorage.getItem('user');
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await fetchWithAutoRefresh('/api/auth/me');
+      const data = await response.json();
 
-    if (storedToken && storedUser) {
-      setAccessToken(storedToken);
-      setUser(JSON.parse(storedUser));
+      if (!response.ok || !data.success) {
+        clearStoredAuth();
+        setUser(null);
+        setAccessToken(null);
+        return;
+      }
+
+      const userData: User = {
+        userId: data.data.userId,
+        username: data.data.username,
+        email: data.data.email,
+        realName: data.data.realName,
+        avatar: data.data.avatar,
+        roles: data.data.roles,
+        permissions: data.data.permissions,
+      };
+
+      setUser(userData);
+      setAccessToken(localStorage.getItem('accessToken'));
+      localStorage.setItem('user', JSON.stringify(userData));
+    } catch (error) {
+      console.error('获取用户信息失败:', error);
+      clearStoredAuth();
+      setUser(null);
+      setAccessToken(null);
     }
+  };
 
-    setLoading(false);
+  useEffect(() => {
+    const bootstrapAuth = async () => {
+      const storedToken = localStorage.getItem('accessToken');
+      const storedRefreshToken = localStorage.getItem('refreshToken');
+      const storedUser = localStorage.getItem('user');
+
+      if (storedUser && (storedToken || storedRefreshToken)) {
+        setAccessToken(storedToken);
+        setUser(JSON.parse(storedUser));
+        await fetchCurrentUser();
+      } else {
+        clearStoredAuth();
+      }
+
+      setLoading(false);
+    };
+
+    bootstrapAuth();
   }, []);
 
-  // 登录
   const login = async (username: string, password: string) => {
     try {
       const response = await fetch('/api/auth/login', {
@@ -74,18 +117,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         body: JSON.stringify({ username, password }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error(data.message || '登录失败');
+        throw new Error(formatApiError(data, '登录失败'));
       }
 
-      // 保存token和用户信息
       const userData: User = {
         userId: data.data.userId,
         username: data.data.username,
         roles: data.data.roles,
-        permissions: [], // 登录后再获取完整用户信息
+        permissions: [],
       };
 
       setAccessToken(data.data.accessToken);
@@ -95,15 +137,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.setItem('refreshToken', data.data.refreshToken);
       localStorage.setItem('user', JSON.stringify(userData));
 
-      // 获取完整用户信息
-      await fetchCurrentUser(data.data.accessToken);
+      await fetchCurrentUser();
     } catch (error) {
       console.error('登录失败:', error);
       throw error;
     }
   };
 
-  // 注册
   const register = async (username: string, password: string, email?: string, realName?: string) => {
     try {
       const response = await fetch('/api/auth/register', {
@@ -114,13 +154,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         body: JSON.stringify({ username, password, email, realName }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error(data.message || '注册失败');
+        throw new Error(formatApiError(data, '注册失败'));
       }
 
-      // 注册成功后自动登录
       await login(username, password);
     } catch (error) {
       console.error('注册失败:', error);
@@ -128,76 +167,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // 获取当前用户完整信息
-  const fetchCurrentUser = async (token?: string) => {
-    try {
-      const authToken = token || accessToken;
-      if (!authToken) return;
-
-      const response = await fetch('/api/auth/me', {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        const userData: User = {
-          userId: data.data.userId,
-          username: data.data.username,
-          email: data.data.email,
-          realName: data.data.realName,
-          avatar: data.data.avatar,
-          roles: data.data.roles,
-          permissions: data.data.permissions,
-        };
-
-        setUser(userData);
-        localStorage.setItem('user', JSON.stringify(userData));
-      }
-    } catch (error) {
-      console.error('获取用户信息失败:', error);
-    }
-  };
-
-  // 登出
   const logout = () => {
     setUser(null);
     setAccessToken(null);
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
+    clearStoredAuth();
   };
 
-  // 更新用户信息
   const updateUser = (updatedUser: User) => {
     setUser(updatedUser);
     localStorage.setItem('user', JSON.stringify(updatedUser));
   };
 
-  // 检查是否有某个权限
   const hasPermission = (permission: string): boolean => {
     if (!user) return false;
 
-    // 管理员拥有所有权限
-    if (user.roles.some(role => role.code === 'admin')) {
+    if (user.roles.some((role) => role.code === 'admin')) {
       return true;
     }
 
     return user.permissions.includes(permission);
   };
 
-  // 检查是否有某个角色
   const hasRole = (role: string): boolean => {
     if (!user) return false;
-    return user.roles.some(r => r.code === role);
+    return user.roles.some((r) => r.code === role);
   };
 
-  // 是否是管理员
-  const isAdmin = (): boolean => {
-    return hasRole('admin');
-  };
+  const isAdmin = (): boolean => hasRole('admin');
 
   const value: AuthContextType = {
     user,

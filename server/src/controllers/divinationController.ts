@@ -172,7 +172,7 @@ export const getRecordById = async (req: Request, res: Response) => {
   }
 };
 
-// 更新AI解析结果
+// 更新AI分析结果
 export const updateAiAnalysis = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -182,8 +182,8 @@ export const updateAiAnalysis = async (req: Request, res: Response) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error('更新AI解析错误:', error);
-    res.status(500).json({ error: '更新AI解析失败' });
+    console.error('更新AI分析错误:', error);
+    res.status(500).json({ error: '更新AI分析失败' });
   }
 };
 

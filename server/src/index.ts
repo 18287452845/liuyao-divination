@@ -4,6 +4,7 @@ import path from 'path';
 import os from 'os';
 import routes from './routes';
 import { initDatabase } from './models/database';
+import { normalizeResponse } from './middleware/normalizeResponse';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '5000', 10);
@@ -12,6 +13,7 @@ const PORT = parseInt(process.env.PORT || '5000', 10);
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(normalizeResponse);
 
 // 设置默认响应头为UTF-8
 app.use((req, res, next) => {

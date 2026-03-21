@@ -1,10 +1,10 @@
-/**
- * 八字批命 API 客户端
- *
- * 提供八字功能相关的所有API调用方法
+﻿/**
+ * 八字 API 客户端
  */
 
 import api from './api';
+import { fetchWithAutoRefresh } from './tokenRefresh';
+import { normalizeLegacyData, normalizeLegacyText } from './textNormalize';
 import type {
   CreateBaziRequest,
   BaziRecord,
@@ -14,56 +14,58 @@ import type {
   CalculatePillarsResponse,
   ApiResponse,
   AiAnalyzeRequest,
-  SSEChunk
+  SSEChunk,
+  Gender
 } from '../types/bazi';
 
-/**
- * 八字批命API
- */
+function normalizeApiResponse<T>(response: ApiResponse<T>): ApiResponse<T> {
+  return {
+    ...response,
+    message: response.message ? normalizeLegacyText(response.message) : response.message,
+    error: response.error ? normalizeLegacyText(response.error) : response.error,
+    data: response.data === undefined ? undefined : normalizeLegacyData(response.data)
+  };
+}
+
+function getResponseErrorMessage(errorText: string, fallback: string) {
+  if (!errorText) {
+    return fallback;
+  }
+
+  try {
+    const parsed = JSON.parse(errorText);
+    return normalizeLegacyText(parsed?.message || parsed?.error || fallback);
+  } catch {
+    return normalizeLegacyText(errorText);
+  }
+}
+
 export const baziApi = {
-  /**
-   * 创建八字记录（保存到数据库）
-   */
   createBazi: async (data: CreateBaziRequest): Promise<ApiResponse<CreateBaziResponse>> => {
     const response = await api.post('/bazi', data);
-    return response.data;
+    return normalizeApiResponse(response.data);
   },
 
-  /**
-   * 获取八字记录列表
-   */
   getRecords: async (params?: GetRecordsRequest): Promise<ApiResponse<GetRecordsResponse>> => {
     const response = await api.get('/bazi/records', { params });
-    return response.data;
+    return normalizeApiResponse(response.data);
   },
 
-  /**
-   * 获取单条八字记录
-   */
   getRecordById: async (id: string): Promise<ApiResponse<BaziRecord>> => {
     const response = await api.get(`/bazi/records/${id}`);
-    return response.data;
+    return normalizeApiResponse(response.data);
   },
 
-  /**
-   * 删除八字记录
-   */
   deleteRecord: async (id: string): Promise<ApiResponse<void>> => {
     const response = await api.delete(`/bazi/records/${id}`);
-    return response.data;
+    return normalizeApiResponse(response.data);
   },
 
-  /**
-   * 更新AI分析结果
-   */
   updateAiAnalysis: async (id: string, aiAnalysis: string): Promise<ApiResponse<void>> => {
     const response = await api.put(`/bazi/records/${id}/analysis`, { aiAnalysis });
-    return response.data;
+    return normalizeApiResponse(response.data);
   },
 
-  /**
-   * 更新验证反馈
-   */
   updateVerification: async (
     id: string,
     data: {
@@ -73,60 +75,45 @@ export const baziApi = {
     }
   ): Promise<ApiResponse<void>> => {
     const response = await api.put(`/bazi/records/${id}/verification`, data);
-    return response.data;
+    return normalizeApiResponse(response.data);
   },
 
-  /**
-   * 工具：仅计算四柱（不保存）
-   */
   calculatePillars: async (data: {
-    gender: '男' | '女';
+    gender: Gender;
     birthDatetime: number;
     useTrueSolarTime?: boolean;
     birthLocation?: string;
   }): Promise<ApiResponse<CalculatePillarsResponse>> => {
     const response = await api.post('/bazi/tools/calculate-pillars', data);
-    return response.data;
+    return normalizeApiResponse(response.data);
   }
 };
 
-/**
- * AI流式分析八字（使用SSE）
- *
- * @param data 分析请求数据
- * @param onChunk 接收数据块的回调函数
- * @param onError 错误处理回调函数
- * @param onComplete 完成回调函数
- */
 export const analyzeBaziStream = async (
   data: AiAnalyzeRequest,
   onChunk: (content: string) => void,
   onError: (error: string) => void,
   onComplete?: () => void
 ): Promise<void> => {
+  let hasContent = false;
+
   try {
-    const token = localStorage.getItem('accessToken');
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json'
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch('/api/bazi/ai/analyze', {
+    const response = await fetchWithAutoRefresh('/api/bazi/ai/analyze', {
       method: 'POST',
-      headers,
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify(data)
     });
 
     if (!response.ok) {
-      throw new Error(`AI分析请求失败: ${response.status} ${response.statusText}`);
+      const errorText = await response.text().catch(() => '');
+      throw new Error(getResponseErrorMessage(errorText, `AI分析请求失败 (${response.status})`));
     }
 
     const reader = response.body?.getReader();
     if (!reader) {
-      throw new Error('无法读取响应流');
+      throw new Error('无法读取流式响应');
     }
 
     const decoder = new TextDecoder();
@@ -135,7 +122,6 @@ export const analyzeBaziStream = async (
       const { done, value } = await reader.read();
 
       if (done) {
-        onComplete?.();
         break;
       }
 
@@ -143,54 +129,55 @@ export const analyzeBaziStream = async (
       const lines = chunk.split('\n').filter(line => line.trim() !== '');
 
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const dataStr = line.slice(6);
+        if (!line.startsWith('data: ')) {
+          continue;
+        }
 
-          // 检查是否完成
-          if (dataStr === '[DONE]') {
-            onComplete?.();
+        const dataStr = line.slice(6);
+        if (dataStr === '[DONE]') {
+          onComplete?.();
+          return;
+        }
+
+        try {
+          const parsed: SSEChunk = JSON.parse(dataStr);
+
+          if (parsed.content) {
+            hasContent = true;
+            onChunk(parsed.content);
+          }
+
+          if (parsed.error) {
+            onError(normalizeLegacyText(parsed.error));
             return;
           }
 
-          try {
-            const parsed: SSEChunk = JSON.parse(dataStr);
-
-            if (parsed.content) {
-              onChunk(parsed.content);
-            }
-
-            if (parsed.error) {
-              onError(parsed.error);
-              return;
-            }
-
-            if (parsed.done) {
+          if (parsed.done) {
+            if (hasContent) {
               onComplete?.();
-              return;
             }
-          } catch (e) {
-            console.warn('解析SSE数据失败:', e, dataStr);
+            return;
           }
+        } catch (error) {
+          console.warn('解析 SSE 数据失败:', error, dataStr);
         }
       }
     }
+
+    if (hasContent) {
+      onComplete?.();
+    }
   } catch (error: any) {
     console.error('AI分析流式请求错误:', error);
-    onError(error.message || 'AI分析失败');
+    onError(normalizeLegacyText(error.message || 'AI分析失败'));
   }
 };
 
-/**
- * AI非流式分析八字（备用，用于不支持SSE的场景）
- *
- * @param data 分析请求数据
- * @returns Promise返回完整的分析结果
- */
 export const analyzeBaziSync = async (
   data: AiAnalyzeRequest
 ): Promise<ApiResponse<{ analysis: string; model: string }>> => {
   const response = await api.post('/bazi/ai/analyze-sync', data);
-  return response.data;
+  return normalizeApiResponse(response.data);
 };
 
 export default baziApi;

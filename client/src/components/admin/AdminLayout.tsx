@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface AdminLayoutProps {
@@ -12,12 +12,12 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { path: '/admin', label: '控制台', icon: '📊' },
-  { path: '/admin/users', label: '用户管理', icon: '👥' },
-  { path: '/admin/roles', label: '角色权限', icon: '🔐' },
-  { path: '/admin/invites', label: '邀请码', icon: '🎫' },
-  { path: '/admin/login-logs', label: '登录日志', icon: '📝' },
-  { path: '/admin/sessions', label: '会话管理', icon: '🔗' },
+  { path: '/admin', label: '控制台', icon: '盘' },
+  { path: '/admin/users', label: '用户管理', icon: '人' },
+  { path: '/admin/roles', label: '角色权限', icon: '权' },
+  { path: '/admin/invites', label: '邀请码', icon: '码' },
+  { path: '/admin/login-logs', label: '登录日志', icon: '志' },
+  { path: '/admin/sessions', label: '会话管理', icon: '会' },
 ];
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
@@ -32,30 +32,30 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       '/admin/login-logs': '登录日志',
       '/admin/sessions': '会话管理',
     };
+
     return pathMap[location.pathname] || '管理后台';
   };
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-gray-200 flex-shrink-0">
         <div className="p-6 border-b border-gray-200">
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <span>⚙️</span>
+            <span>管</span>
             <span>管理后台</span>
           </h2>
         </div>
+
         <nav className="p-4">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
+
             return (
               <Link
                 key={item.path}
                 to={item.path}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg mb-2 transition-all ${
-                  isActive
-                    ? 'bg-primary text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100'
+                  isActive ? 'bg-primary text-white shadow-md' : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 <span className="text-xl">{item.icon}</span>
@@ -66,9 +66,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         </nav>
       </aside>
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col">
-        {/* Breadcrumb */}
         <div className="bg-white border-b border-gray-200 px-8 py-4">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Link to="/admin" className="hover:text-primary transition-colors">
@@ -83,10 +81,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           </div>
         </div>
 
-        {/* Page Content */}
-        <main className="flex-1 p-8">
-          {children}
-        </main>
+        <main className="flex-1 p-8">{children}</main>
       </div>
     </div>
   );

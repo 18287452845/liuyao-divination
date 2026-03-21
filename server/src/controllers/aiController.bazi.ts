@@ -7,6 +7,7 @@ import { Request, Response } from 'express';
 import axios from 'axios';
 import { queryOne, update } from '../models/database';
 import { BaZiDecoration, DaYunStep } from '../types/bazi';
+import { normalizeLegacyText } from '../utils/textNormalize';
 
 /**
  * 构建八字批注的专业Prompt
@@ -164,7 +165,7 @@ export async function analyzeBazi(req: Request, res: Response): Promise<void> {
     if (!apiKey) {
       res.status(500).json({
         success: false,
-        message: 'DeepSeek API密钥未配置'
+        message: 'DeepSeek API Key 未配置'
       });
       return;
     }
@@ -250,8 +251,8 @@ export async function analyzeBazi(req: Request, res: Response): Promise<void> {
     });
 
     response.data.on('error', (error: Error) => {
-      console.error('Stream error:', error);
-      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+      console.error('流式响应错误:', error);
+      res.write(`data: ${JSON.stringify({ error: 'AI分析流式响应出错，请稍后重试' })}\n\n`);
       res.end();
     });
 
@@ -264,16 +265,21 @@ export async function analyzeBazi(req: Request, res: Response): Promise<void> {
 
   } catch (error) {
     console.error('AI分析失败:', error);
+    const errorMessage = normalizeLegacyText(
+      (error as any)?.response?.data?.error?.message ||
+      (error as any)?.response?.data?.message ||
+      'AI分析失败，请稍后重试'
+    );
 
     if (!res.headersSent) {
       res.status(500).json({
         success: false,
         message: 'AI分析失败',
-        error: error instanceof Error ? error.message : String(error)
+        error: errorMessage
       });
     } else {
       res.write(`data: ${JSON.stringify({
-        error: error instanceof Error ? error.message : 'AI分析失败'
+        error: errorMessage
       })}\n\n`);
       res.end();
     }
@@ -315,7 +321,7 @@ export async function analyzeBaziSync(req: Request, res: Response): Promise<void
     if (!apiKey) {
       res.status(500).json({
         success: false,
-        message: 'DeepSeek API密钥未配置'
+        message: 'DeepSeek API Key 未配置'
       });
       return;
     }
@@ -374,10 +380,15 @@ export async function analyzeBaziSync(req: Request, res: Response): Promise<void
 
   } catch (error) {
     console.error('AI分析失败:', error);
+    const errorMessage = normalizeLegacyText(
+      (error as any)?.response?.data?.error?.message ||
+      (error as any)?.response?.data?.message ||
+      'AI分析失败，请稍后重试'
+    );
     res.status(500).json({
       success: false,
       message: 'AI分析失败',
-      error: error instanceof Error ? error.message : String(error)
+      error: errorMessage
     });
   }
 }

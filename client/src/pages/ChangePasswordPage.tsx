@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../services/api';
 
@@ -21,8 +21,8 @@ const ChangePasswordPage: React.FC = () => {
       return;
     }
 
-    if (newPassword.length < 6) {
-      setError('新密码长度至少为6个字符');
+    if (oldPassword === newPassword) {
+      setError('新密码不能与当前密码相同');
       return;
     }
 
@@ -30,7 +30,7 @@ const ChangePasswordPage: React.FC = () => {
       setLoading(true);
       const res = await authApi.changePassword({
         oldPassword,
-        newPassword
+        newPassword,
       });
 
       if (res.success) {
@@ -38,7 +38,7 @@ const ChangePasswordPage: React.FC = () => {
         setOldPassword('');
         setNewPassword('');
         setConfirmPassword('');
-        // 3秒后跳转回上一页或首页
+
         setTimeout(() => {
           navigate('/');
         }, 1500);
@@ -54,7 +54,10 @@ const ChangePasswordPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-yellow-50 py-8 px-4">
       <div className="max-w-md mx-auto">
         <div className="bg-white rounded-lg shadow-md p-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">修改密码</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2 text-center">修改密码</h2>
+          <p className="text-sm text-gray-500 text-center mb-6">
+            新密码建议至少 8 位，并包含大小写字母、数字和特殊字符。
+          </p>
 
           {error && (
             <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
@@ -70,9 +73,7 @@ const ChangePasswordPage: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                当前密码
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">当前密码</label>
               <input
                 type="password"
                 required
@@ -84,23 +85,19 @@ const ChangePasswordPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                新密码
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">新密码</label>
               <input
                 type="password"
                 required
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all outline-none"
-                placeholder="请输入新密码（至少6位）"
+                placeholder="请输入新密码"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                确认新密码
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">确认新密码</label>
               <input
                 type="password"
                 required

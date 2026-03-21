@@ -368,6 +368,11 @@ export async function cleanupExpiredSessions(): Promise<number> {
  */
 export async function getSessionStatistics(req: Request, res: Response): Promise<void> {
   try {
+    const activeUsersResult: any = await queryOne(
+      'SELECT COUNT(DISTINCT user_id) as count FROM user_sessions WHERE is_active = 1'
+    );
+    const activeUsers = activeUsersResult?.count || 0;
+
     // 总活跃会话数
     const totalActiveResult: any = await queryOne(
       'SELECT COUNT(*) as count FROM user_sessions WHERE is_active = 1'
@@ -415,6 +420,7 @@ export async function getSessionStatistics(req: Request, res: Response): Promise
     res.json({
       success: true,
       data: {
+        activeUsers,
         totalActive,
         todayActive,
         weekActive,

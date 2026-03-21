@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useToast } from '../hooks/useToast';
 import ToastContainer from '../components/ToastContainer';
 import api from '../utils/api';
+import { normalizeLegacyData } from '../utils/textNormalize';
 
 type TabType = 'calendar' | 'branch' | 'yongshen' | 'gua';
 
@@ -88,7 +89,7 @@ const CalendarTool: React.FC<{ toast: any }> = ({ toast }) => {
       const response = await api.get('/tools/calendar/solar-to-lunar', {
         params: date
       });
-      setResult(response.data);
+      setResult(normalizeLegacyData(response.data));
     } catch (error) {
       console.error('查询失败:', error);
       toast.error('查询失败，请重试');
@@ -244,7 +245,7 @@ const BranchTool: React.FC<{ toast: any }> = ({ toast }) => {
       const response = await api.get('/tools/branch/relations', {
         params: { branch }
       });
-      setResult(response.data);
+      setResult(normalizeLegacyData(response.data));
     } catch (error) {
       console.error('查询失败:', error);
       toast.error('查询失败，请重试');
@@ -342,7 +343,7 @@ const YongShenTool: React.FC<{ toast: any }> = ({ toast }) => {
   const loadCategories = async () => {
     try {
       const response = await api.get('/tools/yongshen/categories');
-      setCategories(response.data);
+      setCategories(normalizeLegacyData(response.data));
     } catch (error) {
       console.error('加载分类失败:', error);
     }
@@ -354,7 +355,7 @@ const YongShenTool: React.FC<{ toast: any }> = ({ toast }) => {
       const response = await api.get('/tools/yongshen/helper', {
         params: { category }
       });
-      setResult(response.data);
+      setResult(normalizeLegacyData(response.data));
     } catch (error) {
       console.error('查询失败:', error);
       toast.error('查询失败，请重试');
@@ -455,7 +456,7 @@ const GuaTool: React.FC<{ toast: any }> = ({ toast }) => {
     setLoading(true);
     try {
       const response = await api.get('/tools/gua/list');
-      setGuaList(response.data);
+      setGuaList(normalizeLegacyData(response.data));
     } catch (error) {
       console.error('加载卦象列表失败:', error);
       toast.error('加载卦象列表失败');
@@ -475,7 +476,7 @@ const GuaTool: React.FC<{ toast: any }> = ({ toast }) => {
     if (!gua) return;
     try {
       const response = await api.get(`/tools/gua/${gua.number}`);
-      setSelectedGua(response.data);
+      setSelectedGua(normalizeLegacyData(response.data));
       setShowDetail(true);
     } catch (error) {
       console.error('加载卦象详情失败:', error);

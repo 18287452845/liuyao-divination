@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -19,14 +19,14 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   cancelText = '取消',
   onConfirm,
   onCancel,
-  type = 'warning'
+  type = 'warning',
 }) => {
   if (!isOpen) return null;
 
   const typeStyles = {
     danger: 'bg-red-500 hover:bg-red-600',
     warning: 'bg-yellow-500 hover:bg-yellow-600',
-    info: 'bg-blue-500 hover:bg-blue-600'
+    info: 'bg-blue-500 hover:bg-blue-600',
   };
 
   return (

@@ -296,6 +296,17 @@ export class DivinationRecordModel {
     const totalResult: any = await queryOne('SELECT COUNT(*) as count FROM divination_records');
     const total = totalResult ? totalResult.count : 0;
 
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfTomorrow = new Date(startOfToday);
+    startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+
+    const todayResult: any = await queryOne(
+      'SELECT COUNT(*) as count FROM divination_records WHERE timestamp >= ? AND timestamp < ?',
+      [startOfToday.getTime(), startOfTomorrow.getTime()]
+    );
+    const todayTotal = todayResult ? todayResult.count : 0;
+
     // 已验证数
     const verifiedResult: any = await queryOne(
       'SELECT COUNT(*) as count FROM divination_records WHERE is_verified = TRUE'
@@ -360,6 +371,7 @@ export class DivinationRecordModel {
 
     return {
       total,
+      todayTotal,
       verified,
       unverified: total - verified,
       verificationRate: total > 0 ? ((verified / total) * 100).toFixed(2) : '0.00',

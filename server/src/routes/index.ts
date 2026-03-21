@@ -153,7 +153,7 @@ router.post('/auth/register', register);
 router.get('/auth/me', authenticate, getCurrentUser);
 router.post('/auth/change-password', authenticate, changePassword);
 router.put('/auth/profile', authenticate, updateProfile);
-router.post('/auth/refresh', authenticate, refreshToken);
+router.post('/auth/refresh', refreshToken);
 router.post('/auth/logout', authenticate, logout);
 
 // ==================== API Key 管理 ====================

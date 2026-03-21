@@ -1,6 +1,6 @@
-import type { DivinationRecord } from '../types';
+﻿import type { DivinationRecord } from '../types';
 
-export const exportToJSON = (data: any, filename: string = 'export.json') => {
+export const exportToJSON = (data: any, filename = 'export.json') => {
   const jsonString = JSON.stringify(data, null, 2);
   const blob = new Blob([jsonString], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -20,7 +20,8 @@ export const exportRecordsToJSON = (records: DivinationRecord[]) => {
 };
 
 export const exportRecordToJSON = (record: DivinationRecord) => {
-  const filename = `六爻_${record.benGua.name}_${new Date(record.timestamp).toLocaleDateString('zh-CN')}.json`;
+  const dateLabel = new Date(record.timestamp).toLocaleDateString('zh-CN').replace(/\//g, '-');
+  const filename = `六爻_${record.benGua.name}_${dateLabel}.json`;
   exportToJSON(record, filename);
 };
 
@@ -35,24 +36,33 @@ export const copyToClipboard = async (text: string): Promise<boolean> => {
 };
 
 export const shareRecord = (record: DivinationRecord): string => {
-  const shareText = `
-【六爻卦象】${record.benGua.name}${record.bianGua ? ` → ${record.bianGua.name}` : ''}
-
-占问：${record.question}
-时间：${new Date(record.timestamp).toLocaleString('zh-CN')}
-
-本卦：
-${record.benGua.lines.slice().reverse().map((line, i) => {
   const yaoNames = ['上', '五', '四', '三', '二', '初'];
-  const symbol = line === 1 ? '━━━' : '━ ━';
-  const change = record.benGua.changes[5 - i] ? ' ○' : '';
-  return `${yaoNames[i]}爻: ${symbol}${change}`;
-}).join('\n')}
+  const lines = record.benGua.lines
+    .slice()
+    .reverse()
+    .map((line, index) => {
+      const symbol = line === 1 ? '━━━' : '━ ━';
+      const change = record.benGua.changes[5 - index] ? ' 动' : '';
+      return `${yaoNames[index]}爻 ${symbol}${change}`;
+    })
+    .join('\n');
 
-${record.aiAnalysis ? `\nAI解卦：\n${record.aiAnalysis.substring(0, 200)}...\n` : ''}
----
-来自：六爻排盘系统
-  `.trim();
+  const analysisSnippet = record.aiAnalysis
+    ? `\nAI 解卦：\n${record.aiAnalysis.substring(0, 200)}${record.aiAnalysis.length > 200 ? '...' : ''}\n`
+    : '';
 
-  return shareText;
+  return [
+    `【六爻卦象】${record.benGua.name}${record.bianGua ? ` → ${record.bianGua.name}` : ''}`,
+    '',
+    `占问：${record.question}`,
+    `时间：${new Date(record.timestamp).toLocaleString('zh-CN')}`,
+    '',
+    '本卦：',
+    lines,
+    analysisSnippet.trim(),
+    '---',
+    '来自：六爻排盘系统',
+  ]
+    .filter(Boolean)
+    .join('\n');
 };
