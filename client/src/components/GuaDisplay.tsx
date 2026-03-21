@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import type { Gua, GuaDecoration } from '../types';
 
 interface GuaDisplayProps {
@@ -8,28 +8,39 @@ interface GuaDisplayProps {
   showDecoration?: boolean;
 }
 
-const TRIGRAM_SYMBOLS: Record<string, string> = {
-  乾: '☰',
-  兑: '☱',
-  离: '☲',
-  震: '☳',
-  巽: '☴',
-  坎: '☵',
-  艮: '☶',
-  坤: '☷',
-};
-
 const YAO_NAMES = ['初', '二', '三', '四', '五', '上'];
 
 const GuaDisplay: React.FC<GuaDisplayProps> = ({ gua, decoration, title, showDecoration = false }) => {
+  const renderYaoVisual = (lineValue: number, size: 'large' | 'normal' = 'normal') => {
+    const isYang = lineValue === 1;
+    const lineClassName = size === 'large' ? 'yao-line-large' : 'yao-line';
+    const gapClassName = size === 'large' ? 'gap-3' : 'gap-2';
+
+    if (isYang) {
+      return <div className={`${lineClassName} yao-yang w-full`} />;
+    }
+
+    return (
+      <div className={`flex ${gapClassName} w-full`}>
+        <div className={`${lineClassName} yao-yin flex-1`} />
+        <div className={`${lineClassName} yao-yin flex-1`} />
+      </div>
+    );
+  };
+
   return (
     <div className="card">
       {title && (
         <div className="text-center mb-6">
           <h2 className="text-2xl font-bold text-primary mb-2">{title}</h2>
-          <div className="text-4xl mb-2">
-            {TRIGRAM_SYMBOLS[gua.trigrams.upper] || ''}
-            {TRIGRAM_SYMBOLS[gua.trigrams.lower] || ''}
+          <div className="mx-auto mb-3 w-24 space-y-2">
+            {Array.from({ length: 6 }).map((_, index) => {
+              const i = 5 - index;
+              return <div key={`header-${i}`}>{renderYaoVisual(Number(gua.lines?.[i]), 'large')}</div>;
+            })}
+          </div>
+          <div className="text-sm text-gray-500 mb-2">
+            上{gua.trigrams.upper}下{gua.trigrams.lower}
           </div>
           <p className="text-lg text-secondary font-semibold">{gua.name}</p>
         </div>
@@ -39,7 +50,6 @@ const GuaDisplay: React.FC<GuaDisplayProps> = ({ gua, decoration, title, showDec
         {Array.from({ length: 6 }).map((_, index) => {
           const i = 5 - index;
           const lineValue = Number(gua.lines?.[i]);
-          const isYang = lineValue === 1;
           const isChange = Boolean(gua.changes?.[i]);
 
           const sixSpirit = decoration?.sixSpirits?.[i] ?? '-';
@@ -56,14 +66,7 @@ const GuaDisplay: React.FC<GuaDisplayProps> = ({ gua, decoration, title, showDec
                 <div className="w-12 text-center font-semibold text-gray-700">{YAO_NAMES[i]}爻</div>
 
                 <div className="w-full sm:flex-1 sm:min-w-[160px] flex items-center gap-2">
-                  {isYang ? (
-                    <div className="yao-line yao-yang w-full" />
-                  ) : (
-                    <div className="flex gap-2 w-full">
-                      <div className="yao-line yao-yin flex-1" />
-                      <div className="yao-line yao-yin flex-1" />
-                    </div>
-                  )}
+                  {renderYaoVisual(lineValue)}
                   {isChange && <span className="text-sm px-2 py-1 rounded bg-red-50 text-red-600 font-semibold">动</span>}
                 </div>
 

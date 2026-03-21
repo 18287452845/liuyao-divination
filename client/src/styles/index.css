@@ -45,6 +45,10 @@
     @apply h-4 rounded-sm transition-all duration-500 shadow-sm border border-stone-300/70;
   }
 
+  .yao-line-large {
+    @apply h-3 rounded-sm transition-all duration-500 shadow-sm border border-stone-300/70;
+  }
+
   .yao-yang {
     @apply bg-gradient-to-r from-primary to-red-600 border-red-300/40;
   }
