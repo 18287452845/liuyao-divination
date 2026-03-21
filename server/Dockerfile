@@ -66,7 +66,7 @@ EXPOSE 5000
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD node -e "try{require('http').get('http://localhost:5000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})}catch(e){process.exit(1)}"
+  CMD node -e "try{require('http').get('http://127.0.0.1:5000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})}catch(e){process.exit(1)}"
 
 # 使用dumb-init作为初始化进程
 ENTRYPOINT ["dumb-init", "--"]
