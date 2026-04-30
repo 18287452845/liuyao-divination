@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { divinationApi } from '../utils/api';
 import { useToast } from '../hooks/useToast';
@@ -7,7 +7,14 @@ import { exportRecordsToJSON } from '../utils/export';
 import ToastContainer from '../components/ToastContainer';
 import ConfirmDialog from '../components/ConfirmDialog';
 import VerificationModal from '../components/VerificationModal';
-import type { DivinationRecord } from '../types';
+import type { DivinationMethod, DivinationRecord } from '../types';
+
+const methodMap: Record<DivinationMethod, string> = {
+  time: '时间起卦',
+  number: '数字起卦',
+  manual: '手动摇卦',
+  input: '手动输入',
+};
 
 const HistoryPage: React.FC = () => {
   const navigate = useNavigate();
@@ -18,14 +25,14 @@ const HistoryPage: React.FC = () => {
   const toast = useToast();
   const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; recordId: string | null }>({
     isOpen: false,
-    recordId: null
+    recordId: null,
   });
   const [verificationModal, setVerificationModal] = useState<{
     isOpen: boolean;
     record: DivinationRecord | null;
   }>({
     isOpen: false,
-    record: null
+    record: null,
   });
 
   useEffect(() => {
@@ -41,7 +48,7 @@ const HistoryPage: React.FC = () => {
     try {
       const data = await divinationApi.getRecords({
         search: searchQuery,
-        limit: 50
+        limit: 50,
       });
       setRecords(data);
     } catch (error) {
@@ -108,13 +115,6 @@ const HistoryPage: React.FC = () => {
     }
   };
 
-  const methodMap = {
-    time: '时间起卦',
-    number: '数字起卦',
-    manual: '手动摇卦',
-    input: '手动输入'
-  };
-
   return (
     <>
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
@@ -139,166 +139,137 @@ const HistoryPage: React.FC = () => {
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <h1 className="text-4xl font-bold text-center mb-8 text-primary">历史记录</h1>
 
-        {/* 搜索栏 */}
         <div className="card mb-8">
-          <div className="flex gap-4 mb-4">
+          <div className="flex gap-4 mb-4 flex-wrap">
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="搜索占问事项... (自动搜索)"
-              className="flex-1 p-3 border-2 border-gray-300 rounded-lg focus:border-primary focus:outline-none"
+              placeholder="搜索占问事项..."
+              className="flex-1 min-w-[260px] p-3 border-2 border-gray-300 rounded-lg focus:border-primary focus:outline-none"
             />
-            <button
-              onClick={() => {
-                setSearch('');
-              }}
-              className="btn-secondary px-8"
-            >
+            <button onClick={() => setSearch('')} className="btn-secondary px-8">
               重置
             </button>
             <button
               onClick={handleExport}
               className="bg-accent hover:bg-amber-600 text-white font-semibold py-2 px-8 rounded-lg shadow-md transition-all duration-300"
-              title="导出所有记录为JSON文件"
+              title="导出当前记录为 JSON 文件"
             >
-              📥 导出
+              导出
             </button>
           </div>
           {debouncedSearch && (
             <p className="text-sm text-gray-500">
-              搜索 "{debouncedSearch}" 的结果：{records.length} 条
+              搜索“{debouncedSearch}”的结果：{records.length} 条
             </p>
           )}
         </div>
 
-      {/* 记录列表 */}
-      {loading ? (
-        <div className="text-center py-12">
-          <p className="text-xl">加载中...</p>
-        </div>
-      ) : records.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-xl text-gray-500 mb-6">暂无记录</p>
-          <button
-            onClick={() => navigate('/')}
-            className="btn-primary"
-          >
-            开始起卦
-          </button>
-        </div>
-      ) : (
-        <div className="grid md:grid-cols-2 gap-6">
-          {records.map((record) => (
-            <div key={record.id} className="card hover:shadow-xl transition-shadow cursor-pointer">
-              <div onClick={() => navigate(`/paidian/${record.id}`)}>
-                {/* 卦名 */}
-                <div className="mb-4">
-                  <h3 className="text-2xl font-bold text-primary mb-2">
-                    {record.benGua.name}
-                    {record.bianGua && (
-                      <span className="text-lg text-gray-500 ml-2">
-                        → {record.bianGua.name}
+        {loading ? (
+          <div className="text-center py-12">
+            <p className="text-xl">加载中...</p>
+          </div>
+        ) : records.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-xl text-gray-500 mb-6">暂无记录</p>
+            <button onClick={() => navigate('/')} className="btn-primary">
+              开始起卦
+            </button>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-6">
+            {records.map((record) => (
+              <div key={record.id} className="card hover:shadow-xl transition-shadow cursor-pointer">
+                <div onClick={() => navigate(`/paidian/${record.id}`)}>
+                  <div className="mb-4">
+                    <h3 className="text-2xl font-bold text-primary mb-2">
+                      {record.benGua.name}
+                      {record.bianGua && <span className="text-lg text-gray-500 ml-2">→ {record.bianGua.name}</span>}
+                    </h3>
+                    <p className="text-gray-600 line-clamp-2">{record.question}</p>
+                  </div>
+
+                  <div className="flex items-center gap-4 text-sm text-gray-500 mb-4 flex-wrap">
+                    <span>{new Date(record.timestamp).toLocaleString('zh-CN')}</span>
+                    <span className="px-2 py-1 bg-secondary/10 text-secondary rounded">
+                      {methodMap[record.method] || record.method}
+                    </span>
+                    {record.aiAnalysis && <span className="px-2 py-1 bg-accent/10 text-accent rounded">已解卦</span>}
+                    {record.isVerified && (
+                      <span className="px-2 py-1 bg-green-100 text-green-700 rounded flex items-center gap-1">
+                        已验证
+                        {record.accuracyRating ? <span>({record.accuracyRating} 星)</span> : null}
                       </span>
                     )}
-                  </h3>
-                  <p className="text-gray-600 line-clamp-2">{record.question}</p>
+                  </div>
+
+                  <div className="flex gap-1 mb-4">
+                    {record.benGua.lines
+                      .slice()
+                      .reverse()
+                      .map((line, index) => (
+                        <div
+                          key={index}
+                          className={`flex-1 h-2 rounded ${line === 1 ? 'bg-primary' : 'bg-secondary'}`}
+                        ></div>
+                      ))}
+                  </div>
                 </div>
 
-                {/* 信息 */}
-                <div className="flex items-center gap-4 text-sm text-gray-500 mb-4 flex-wrap">
-                  <span>{new Date(record.timestamp).toLocaleString('zh-CN')}</span>
-                  <span className="px-2 py-1 bg-secondary/10 text-secondary rounded">
-                    {methodMap[record.method as keyof typeof methodMap]}
-                  </span>
-                  {record.aiAnalysis && (
-                    <span className="px-2 py-1 bg-accent/10 text-accent rounded">
-                      已解卦
-                    </span>
+                <div className="flex gap-2 pt-4 border-t border-gray-200 flex-wrap">
+                  <button
+                    onClick={() => navigate(`/paidian/${record.id}`)}
+                    className="flex-1 py-2 px-4 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors"
+                  >
+                    查看
+                  </button>
+                  <button
+                    onClick={() => navigate(`/jiegua/${record.id}`)}
+                    className="flex-1 py-2 px-4 bg-secondary/10 text-secondary rounded-lg hover:bg-secondary/20 transition-colors"
+                  >
+                    解卦
+                  </button>
+                  {!record.isVerified ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleVerify(record);
+                      }}
+                      className="flex-1 py-2 px-4 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
+                      title="验证卦象结果"
+                    >
+                      验证
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleVerify(record);
+                      }}
+                      className="flex-1 py-2 px-4 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                      title="修改验证信息"
+                    >
+                      编辑
+                    </button>
                   )}
-                  {record.isVerified && (
-                    <span className="px-2 py-1 bg-green-100 text-green-700 rounded flex items-center gap-1">
-                      ✓ 已验证
-                      {record.accuracyRating && (
-                        <span className="ml-1">
-                          ({record.accuracyRating}⭐)
-                        </span>
-                      )}
-                    </span>
-                  )}
-                </div>
-
-                {/* 简略卦象 */}
-                <div className="flex gap-1 mb-4">
-                  {record.benGua.lines.slice().reverse().map((line, index) => (
-                    <div
-                      key={index}
-                      className={`flex-1 h-2 rounded ${
-                        line === 1 ? 'bg-primary' : 'bg-secondary'
-                      }`}
-                    ></div>
-                  ))}
-                </div>
-              </div>
-
-              {/* 操作按钮 */}
-              <div className="flex gap-2 pt-4 border-t border-gray-200">
-                <button
-                  onClick={() => navigate(`/paidian/${record.id}`)}
-                  className="flex-1 py-2 px-4 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors"
-                >
-                  查看
-                </button>
-                <button
-                  onClick={() => navigate(`/jiegua/${record.id}`)}
-                  className="flex-1 py-2 px-4 bg-secondary/10 text-secondary rounded-lg hover:bg-secondary/20 transition-colors"
-                >
-                  解卦
-                </button>
-                {!record.isVerified ? (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleVerify(record);
+                      handleDelete(record.id);
                     }}
-                    className="flex-1 py-2 px-4 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
-                    title="验证卦象结果"
+                    className="py-2 px-4 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
                   >
-                    ✓ 验证
+                    删除
                   </button>
-                ) : (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleVerify(record);
-                    }}
-                    className="flex-1 py-2 px-4 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
-                    title="修改验证信息"
-                  >
-                    ✏️ 编辑
-                  </button>
-                )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete(record.id);
-                  }}
-                  className="py-2 px-4 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                >
-                  删除
-                </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
-        {/* 返回按钮 */}
         <div className="text-center mt-8">
-          <button
-            onClick={() => navigate('/')}
-            className="btn-secondary px-8 py-3"
-          >
+          <button onClick={() => navigate('/')} className="btn-secondary px-8 py-3">
             返回首页
           </button>
         </div>

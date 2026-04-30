@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import axios from 'axios';
 import { Lunar } from 'lunar-javascript';
+import { normalizeLegacyText } from '../utils/textNormalize';
 
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
@@ -13,7 +14,7 @@ export const analyzeGua = async (req: Request, res: Response) => {
     if (!DEEPSEEK_API_KEY || DEEPSEEK_API_KEY.trim() === '') {
       console.error('DeepSeek API Key未配置');
       return res.status(500).json({
-        error: 'DeepSeek API Key未配置，请联系管理员配置API Key后再使用AI分析功能'
+        error: 'DeepSeek API Key 未配置，请联系管理员配置后再使用 AI 分析功能'
       });
     }
 
@@ -191,14 +192,21 @@ export const analyzeGua = async (req: Request, res: Response) => {
     });
 
     response.data.on('error', (error: Error) => {
-      console.error('Stream error:', error);
+      console.error('流式响应错误:', error);
       res.write(`data: ${JSON.stringify({ error: '解卦过程出错' })}\n\n`);
       res.end();
     });
 
   } catch (error: any) {
     console.error('AI解卦错误:', error.message);
-    res.status(500).json({ error: 'AI解卦失败，请检查API配置' });
+    const errorMessage = normalizeLegacyText(
+      error?.response?.data?.error?.message ||
+      error?.response?.data?.message ||
+      'AI解卦失败，请检查 API 配置'
+    );
+    res.status(500).json({
+      error: errorMessage
+    });
   }
 };
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import type { DivinationRecord } from '../types';
 
 interface VerificationModalProps {
@@ -11,11 +11,7 @@ interface VerificationModalProps {
   }) => void;
 }
 
-const VerificationModal: React.FC<VerificationModalProps> = ({
-  record,
-  onClose,
-  onSubmit
-}) => {
+const VerificationModal: React.FC<VerificationModalProps> = ({ record, onClose, onSubmit }) => {
   const [actualResult, setActualResult] = useState(record.actualResult || '');
   const [rating, setRating] = useState(record.accuracyRating || 0);
   const [notes, setNotes] = useState(record.userNotes || '');
@@ -34,31 +30,25 @@ const VerificationModal: React.FC<VerificationModalProps> = ({
     onSubmit({
       actual_result: actualResult,
       accuracy_rating: rating,
-      user_notes: notes
+      user_notes: notes,
     });
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        {/* 标题 */}
         <div className="bg-primary text-white px-6 py-4 rounded-t-lg">
           <h2 className="text-xl font-bold">验证卦象</h2>
-          <p className="text-sm mt-1 opacity-90">记录事情的实际结果</p>
+          <p className="text-sm mt-1 opacity-90">记录事情的实际结果，用于后续复盘。</p>
         </div>
 
-        {/* 内容 */}
         <div className="p-6 space-y-6">
-          {/* 原始占问 */}
           <div className="bg-gray-50 p-4 rounded-lg">
             <p className="text-sm text-gray-600 mb-1">原始占问：</p>
             <p className="font-semibold text-gray-800">{record.question}</p>
-            <p className="text-xs text-gray-500 mt-2">
-              起卦时间：{new Date(record.timestamp).toLocaleString('zh-CN')}
-            </p>
+            <p className="text-xs text-gray-500 mt-2">起卦时间：{new Date(record.timestamp).toLocaleString('zh-CN')}</p>
           </div>
 
-          {/* 实际结果 */}
           <div>
             <label className="block text-sm font-semibold mb-2 text-gray-700">
               实际结果 <span className="text-red-500">*</span>
@@ -66,18 +56,17 @@ const VerificationModal: React.FC<VerificationModalProps> = ({
             <textarea
               value={actualResult}
               onChange={(e) => setActualResult(e.target.value)}
-              placeholder="请详细描述事情的实际结果..."
+              placeholder="请详细描述事情的实际发展和结果..."
               className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-primary focus:outline-none resize-none"
               rows={4}
             />
           </div>
 
-          {/* 准确度评分 */}
           <div>
             <label className="block text-sm font-semibold mb-3 text-gray-700">
               准确度评分 <span className="text-red-500">*</span>
             </label>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
                   key={star}
@@ -87,7 +76,7 @@ const VerificationModal: React.FC<VerificationModalProps> = ({
                   onMouseLeave={() => setHoveredRating(0)}
                   className="text-4xl transition-all duration-150 hover:scale-110"
                 >
-                  {(hoveredRating || rating) >= star ? '⭐' : '☆'}
+                  {(hoveredRating || rating) >= star ? '★' : '☆'}
                 </button>
               ))}
               <span className="ml-3 text-sm text-gray-600">
@@ -101,22 +90,18 @@ const VerificationModal: React.FC<VerificationModalProps> = ({
             </div>
           </div>
 
-          {/* 备注 */}
           <div>
-            <label className="block text-sm font-semibold mb-2 text-gray-700">
-              备注（可选）
-            </label>
+            <label className="block text-sm font-semibold mb-2 text-gray-700">备注（可选）</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="可以记录一些心得体会、应验时间等..."
+              placeholder="可记录应验时间、外部因素、个人判断等..."
               className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-primary focus:outline-none resize-none"
               rows={3}
             />
           </div>
         </div>
 
-        {/* 按钮 */}
         <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex gap-3 justify-end">
           <button
             onClick={onClose}

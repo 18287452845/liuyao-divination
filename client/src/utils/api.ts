@@ -1,5 +1,20 @@
-import axios from 'axios';
+﻿import axios from 'axios';
 import type { DivinationRecord, DivinationMethod, Gender, BaZi } from '../types';
+import { clearStoredAuth, fetchWithAutoRefresh, getStoredAccessToken, refreshAuthTokens } from './tokenRefresh';
+import { normalizeLegacyData, normalizeLegacyText } from './textNormalize';
+
+function getResponseErrorMessage(errorText: string, fallback: string) {
+  if (!errorText) {
+    return fallback;
+  }
+
+  try {
+    const parsed = JSON.parse(errorText);
+    return normalizeLegacyText(parsed?.message || parsed?.error || fallback);
+  } catch {
+    return normalizeLegacyText(errorText);
+  }
+}
 
 const api = axios.create({
   baseURL: '/api',
@@ -8,37 +23,52 @@ const api = axios.create({
   }
 });
 
-// 添加请求拦截器，自动添加认证令牌
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken');
+    const token = getStoredAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// 添加响应拦截器，处理401错误
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Token过期或无效，清除本地存储并跳转登录
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+  (response) => {
+    response.data = normalizeLegacyData(response.data);
+    return response;
+  },
+  async (error) => {
+    const originalRequest = error.config as any;
+    const requestUrl = originalRequest?.url || '';
+
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !requestUrl.includes('/auth/login') &&
+      !requestUrl.includes('/auth/refresh')
+    ) {
+      originalRequest._retry = true;
+
+      const refreshedAccessToken = await refreshAuthTokens();
+      if (refreshedAccessToken) {
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers.Authorization = `Bearer ${refreshedAccessToken}`;
+        return api(originalRequest);
+      }
     }
+
+    if (error.response?.status === 401) {
+      clearStoredAuth(true);
+    }
+
     return Promise.reject(error);
   }
 );
 
 export const divinationApi = {
-  // 创建卦象
   createDivination: async (data: {
     method: DivinationMethod;
     question: string;
@@ -50,39 +80,31 @@ export const divinationApi = {
     return response.data;
   },
 
-  // 模拟摇卦
   simulateShake: async () => {
     const response = await api.get('/divination/simulate');
     return response.data;
   },
 
-  // 获取历史记录
   getRecords: async (params?: { search?: string; limit?: number; offset?: number }) => {
     const response = await api.get<DivinationRecord[]>('/records', { params });
     return response.data;
   },
 
-  // 获取单条记录
   getRecordById: async (id: string) => {
     const response = await api.get<DivinationRecord>(`/records/${id}`);
     return response.data;
   },
 
-  // 更新AI解析
   updateAiAnalysis: async (id: string, aiAnalysis: string) => {
     const response = await api.put(`/records/${id}/analysis`, { aiAnalysis });
     return response.data;
   },
 
-  // 删除记录
   deleteRecord: async (id: string) => {
     const response = await api.delete(`/records/${id}`);
     return response.data;
   },
 
-  // ========== 验证反馈相关 ==========
-
-  // 更新验证信息
   updateVerification: async (id: string, data: {
     actual_result: string;
     accuracy_rating: number;
@@ -92,32 +114,27 @@ export const divinationApi = {
     return response.data;
   },
 
-  // 取消验证
   cancelVerification: async (id: string) => {
     const response = await api.delete(`/records/${id}/verification`);
     return response.data;
   },
 
-  // 获取已验证的记录
   getVerifiedRecords: async (params?: { limit?: number; offset?: number }) => {
     const response = await api.get<DivinationRecord[]>('/records/verified/list', { params });
     return response.data;
   },
 
-  // 获取待验证的记录
   getUnverifiedRecords: async (params?: { limit?: number; offset?: number }) => {
     const response = await api.get<DivinationRecord[]>('/records/unverified/list', { params });
     return response.data;
   },
 
-  // 获取统计信息
   getStatistics: async () => {
     const response = await api.get('/statistics');
     return response.data;
   }
 };
 
-// AI解卦（流式）
 export const analyzeGuaStream = async (
   data: any,
   onChunk: (content: string) => void,
@@ -127,31 +144,26 @@ export const analyzeGuaStream = async (
   let hasContent = false;
 
   try {
-    const token = localStorage.getItem('accessToken');
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json'
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch('/api/ai/analyze', {
+    const response = await fetchWithAutoRefresh('/api/ai/analyze', {
       method: 'POST',
-      headers,
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify(data)
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(errorText || `解卦请求失败 (${response.status})`);
+      throw new Error(
+        getResponseErrorMessage(errorText, `解卦请求失败 (${response.status})`)
+      );
     }
 
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
 
     if (!reader) {
-      throw new Error('无法读取响应流');
+      throw new Error('无法读取流式响应');
     }
 
     while (true) {
@@ -162,37 +174,38 @@ export const analyzeGuaStream = async (
       const lines = chunk.split('\n').filter(line => line.trim() !== '');
 
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          if (data === '[DONE]') {
-            if (hasContent && onComplete) {
-              onComplete();
-            }
+        if (!line.startsWith('data: ')) {
+          continue;
+        }
+
+        const payload = line.slice(6);
+        if (payload === '[DONE]') {
+          if (hasContent && onComplete) {
+            onComplete();
+          }
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(payload);
+          if (parsed.content) {
+            hasContent = true;
+            onChunk(parsed.content);
+          } else if (parsed.error) {
+            onError(normalizeLegacyText(parsed.error));
             return;
           }
-
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.content) {
-              hasContent = true;
-              onChunk(parsed.content);
-            } else if (parsed.error) {
-              onError(parsed.error);
-              return;
-            }
-          } catch (e) {
-            // 忽略解析错误
-          }
+        } catch {
+          // Ignore malformed SSE chunks from upstream.
         }
       }
     }
 
-    // 流结束但没有收到[DONE]信号
     if (hasContent && onComplete) {
       onComplete();
     }
   } catch (error: any) {
-    onError(error.message || '解卦失败');
+    onError(normalizeLegacyText(error.message || '解卦失败'));
   }
 };
 

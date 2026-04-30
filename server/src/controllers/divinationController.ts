@@ -8,8 +8,31 @@ import {
   divinationByInput,
   generateBianGua,
   decorateGua,
+  normalizeGuaByMethod,
   simulateYaoGua
 } from '../utils/liuyao';
+
+function buildNormalizedRecord(row: any) {
+  const timestamp = Number(row.timestamp);
+  const date = new Date(timestamp);
+  const benGua = normalizeGuaByMethod(JSON.parse(row.ben_gua), row.method);
+  const bianGua = benGua ? generateBianGua(benGua) : null;
+  const decoration = benGua ? decorateGua(benGua, date) : JSON.parse(row.decoration);
+
+  return {
+    id: row.id,
+    timestamp: row.timestamp,
+    question: row.question,
+    gender: row.gender || undefined,
+    bazi: row.bazi ? JSON.parse(row.bazi) : undefined,
+    method: row.method,
+    benGua,
+    bianGua,
+    decoration,
+    aiAnalysis: row.ai_analysis,
+    createdAt: row.created_at
+  };
+}
 
 // 创建卦象
 export const createDivination = async (req: Request, res: Response) => {
@@ -97,19 +120,7 @@ export const getRecords = async (req: Request, res: Response) => {
       Number(offset)
     );
 
-    const formattedRecords = records.map((row: any) => ({
-      id: row.id,
-      timestamp: row.timestamp,
-      question: row.question,
-      gender: row.gender || undefined,
-      bazi: row.bazi ? JSON.parse(row.bazi) : undefined,
-      method: row.method,
-      benGua: JSON.parse(row.ben_gua),
-      bianGua: row.bian_gua ? JSON.parse(row.bian_gua) : null,
-      decoration: JSON.parse(row.decoration),
-      aiAnalysis: row.ai_analysis,
-      createdAt: row.created_at
-    }));
+    const formattedRecords = records.map((row: any) => buildNormalizedRecord(row));
 
     res.json(formattedRecords);
   } catch (error) {
@@ -129,11 +140,12 @@ export const getRecordById = async (req: Request, res: Response) => {
       return res.status(404).json({ error: '记录不存在' });
     }
 
-    const benGua = JSON.parse(row.ben_gua);
-    const decoration = JSON.parse(row.decoration);
+    const normalizedRecord = buildNormalizedRecord(row);
+    const benGua = normalizedRecord.benGua;
+    const decoration = normalizedRecord.decoration;
 
     // 查询卦辞和爻辞
-    const guaData: any = await GuaDataModel.findByName(benGua.name);
+    const guaData: any = benGua ? await GuaDataModel.findByName(benGua.name) : null;
 
     // 解析爻辞JSON
     let yaoCi: string[] = [];
@@ -152,17 +164,8 @@ export const getRecordById = async (req: Request, res: Response) => {
     }
 
     const record = {
-      id: row.id,
-      timestamp: row.timestamp,
-      question: row.question,
-      gender: row.gender || undefined,
-      bazi: row.bazi ? JSON.parse(row.bazi) : undefined,
-      method: row.method,
-      benGua,
-      bianGua: row.bian_gua ? JSON.parse(row.bian_gua) : null,
-      decoration,
-      aiAnalysis: row.ai_analysis,
-      createdAt: row.created_at
+      ...normalizedRecord,
+      decoration
     };
 
     res.json(record);
@@ -172,7 +175,7 @@ export const getRecordById = async (req: Request, res: Response) => {
   }
 };
 
-// 更新AI解析结果
+// 更新AI分析结果
 export const updateAiAnalysis = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -182,8 +185,8 @@ export const updateAiAnalysis = async (req: Request, res: Response) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error('更新AI解析错误:', error);
-    res.status(500).json({ error: '更新AI解析失败' });
+    console.error('更新AI分析错误:', error);
+    res.status(500).json({ error: '更新AI分析失败' });
   }
 };
 
@@ -254,13 +257,17 @@ export const getVerifiedRecords = async (req: Request, res: Response) => {
     const records = await DivinationRecordModel.findVerified(limit, offset);
 
     // 解析JSON字段
-    const parsedRecords = (records as any[]).map((r: any) => ({
-      ...r,
-      ben_gua: JSON.parse(r.ben_gua),
-      bian_gua: r.bian_gua ? JSON.parse(r.bian_gua) : null,
-      decoration: JSON.parse(r.decoration),
-      bazi: r.bazi ? JSON.parse(r.bazi) : undefined
-    }));
+    const parsedRecords = (records as any[]).map((row: any) => {
+      const normalizedRecord = buildNormalizedRecord(row);
+
+      return {
+        ...row,
+        ben_gua: normalizedRecord.benGua,
+        bian_gua: normalizedRecord.bianGua,
+        decoration: normalizedRecord.decoration,
+        bazi: normalizedRecord.bazi
+      };
+    });
 
     res.json(parsedRecords);
   } catch (error) {
@@ -278,13 +285,17 @@ export const getUnverifiedRecords = async (req: Request, res: Response) => {
     const records = await DivinationRecordModel.findUnverified(limit, offset);
 
     // 解析JSON字段
-    const parsedRecords = (records as any[]).map((r: any) => ({
-      ...r,
-      ben_gua: JSON.parse(r.ben_gua),
-      bian_gua: r.bian_gua ? JSON.parse(r.bian_gua) : null,
-      decoration: JSON.parse(r.decoration),
-      bazi: r.bazi ? JSON.parse(r.bazi) : undefined
-    }));
+    const parsedRecords = (records as any[]).map((row: any) => {
+      const normalizedRecord = buildNormalizedRecord(row);
+
+      return {
+        ...row,
+        ben_gua: normalizedRecord.benGua,
+        bian_gua: normalizedRecord.bianGua,
+        decoration: normalizedRecord.decoration,
+        bazi: normalizedRecord.bazi
+      };
+    });
 
     res.json(parsedRecords);
   } catch (error) {

@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -23,45 +23,57 @@ import LoginLogsPage from './pages/admin/LoginLogsPage';
 import SessionManagementPage from './pages/admin/SessionManagementPage';
 import './styles/index.css';
 
-// 主布局组件（包含导航栏的页面）
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, logout, isAdmin } = useAuth();
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* 导航栏 */}
       <nav className="sticky top-0 z-50 glass border-b-0 shadow-lg">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-18 py-2">
             <Link to="/" className="text-2xl font-bold flex items-center gap-3 group">
               <div className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center text-2xl shadow-lg group-hover:scale-110 transition-transform duration-300">
-                ☯
+                易
               </div>
-              <span className="font-calligraphy text-3xl text-gray-800 group-hover:text-primary transition-colors">六爻排盘</span>
+              <span className="font-calligraphy text-3xl text-gray-800 group-hover:text-primary transition-colors">
+                六爻排盘
+              </span>
             </Link>
+
             <div className="flex items-center gap-8">
               <div className="hidden md:flex items-center gap-6">
-                <Link to="/" className="text-gray-700 hover:text-primary font-medium transition-colors">起卦</Link>
-                <Link to="/history" className="text-gray-700 hover:text-primary font-medium transition-colors">历史记录</Link>
-                <Link to="/bazi" className="text-gray-700 hover:text-primary font-medium transition-colors">八字批命</Link>
-                <Link to="/bazi/history" className="text-gray-700 hover:text-primary font-medium transition-colors">八字记录</Link>
-                <Link to="/tools" className="text-gray-700 hover:text-primary font-medium transition-colors">工具箱</Link>
-                <Link to="/settings/api-key" className="text-gray-700 hover:text-primary font-medium transition-colors">API设置</Link>
-                <Link to="/settings/password" className="text-gray-700 hover:text-primary font-medium transition-colors">修改密码</Link>
+                <Link to="/" className="text-gray-700 hover:text-primary font-medium transition-colors">
+                  起卦
+                </Link>
+                <Link to="/history" className="text-gray-700 hover:text-primary font-medium transition-colors">
+                  历史记录
+                </Link>
+                <Link to="/bazi" className="text-gray-700 hover:text-primary font-medium transition-colors">
+                  八字批命
+                </Link>
+                <Link to="/bazi/history" className="text-gray-700 hover:text-primary font-medium transition-colors">
+                  八字记录
+                </Link>
+                <Link to="/tools" className="text-gray-700 hover:text-primary font-medium transition-colors">
+                  工具箱
+                </Link>
+                <Link to="/settings/api-key" className="text-gray-700 hover:text-primary font-medium transition-colors">
+                  API 设置
+                </Link>
+                <Link to="/settings/password" className="text-gray-700 hover:text-primary font-medium transition-colors">
+                  修改密码
+                </Link>
 
-                {/* 管理员菜单 */}
                 {isAdmin() && (
                   <Link to="/admin" className="text-gray-700 hover:text-primary font-medium flex items-center gap-1">
-                    <span>⚙️</span> 后台
+                    <span>管</span>
+                    后台
                   </Link>
                 )}
               </div>
 
-              {/* 用户信息 */}
               <div className="flex items-center gap-4 pl-6 border-l-2 border-gray-200">
-                <span className="text-sm font-medium text-gray-600">
-                  {user?.realName || user?.username}
-                </span>
+                <span className="text-sm font-medium text-gray-600">{user?.realName || user?.username}</span>
                 <button
                   onClick={logout}
                   className="text-sm bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 px-4 py-1.5 rounded-full transition-all duration-300 border border-gray-200 hover:border-red-200"
@@ -74,20 +86,12 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
       </nav>
 
-      {/* 主内容区域 */}
-      <main className="flex-grow container mx-auto px-4 py-8 animate-fade-in">
-        {children}
-      </main>
+      <main className="flex-grow container mx-auto px-4 py-8 animate-fade-in">{children}</main>
 
-      {/* 页脚 */}
       <footer className="bg-white/80 backdrop-blur border-t border-gray-200 py-8 mt-auto">
         <div className="container mx-auto px-4 text-center">
-          <p className="text-gray-600 font-serif">
-            六爻排盘系统 · 传统易经占卜与现代AI技术的完美融合
-          </p>
-          <p className="text-xs text-gray-400 mt-2">
-            © 2024 LiuYao Divination System. All rights reserved.
-          </p>
+          <p className="text-gray-600 font-serif">六爻排盘系统 · 传统易经占卜与现代 AI 分析结合平台</p>
+          <p className="text-xs text-gray-400 mt-2">© 2024 LiuYao Divination System. All rights reserved.</p>
         </div>
       </footer>
     </div>
@@ -99,10 +103,8 @@ const App: React.FC = () => {
     <Router>
       <AuthProvider>
         <Routes>
-          {/* 公开路由 - 登录页 */}
           <Route path="/login" element={<LoginPage />} />
 
-          {/* 受保护的路由 - 需要登录 */}
           <Route
             path="/"
             element={
@@ -174,7 +176,6 @@ const App: React.FC = () => {
             }
           />
 
-          {/* 八字批命路由 */}
           <Route
             path="/bazi"
             element={
@@ -198,7 +199,7 @@ const App: React.FC = () => {
           <Route
             path="/bazi/ai-analysis/:id"
             element={
-              <ProtectedRoute requirePermission="divination:aiAnalysis">
+              <ProtectedRoute requirePermission="bazi:aiAnalysis">
                 <MainLayout>
                   <BaziAiAnalysisPage />
                 </MainLayout>
@@ -216,7 +217,6 @@ const App: React.FC = () => {
             }
           />
 
-          {/* 管理后台路由 - 需要管理员权限 */}
           <Route
             path="/admin"
             element={
@@ -278,7 +278,6 @@ const App: React.FC = () => {
             }
           />
 
-          {/* 默认重定向 */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
