@@ -150,7 +150,8 @@ export async function analyzeBazi(req: Request, res: Response): Promise<void> {
 
     // 获取API Key（用户自定义优先）
     let apiKey = process.env.DEEPSEEK_API_KEY;
-    const apiUrl = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com';
+    const apiUrl = (process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com').replace(/\/+$/, '');
+    const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
 
     if (userId) {
       const user: any = await queryOne(
@@ -189,7 +190,7 @@ export async function analyzeBazi(req: Request, res: Response): Promise<void> {
     const response = await axios.post(
       `${apiUrl}/v1/chat/completions`,
       {
-        model: 'deepseek-chat',
+        model,
         messages: [
           {
             role: 'user',
@@ -226,7 +227,7 @@ export async function analyzeBazi(req: Request, res: Response): Promise<void> {
                 `UPDATE bazi_records
                  SET ai_analysis = ?, ai_model = ?, ai_analyzed_at = ?
                  WHERE id = ? AND user_id = ?`,
-                [fullAnalysis, 'deepseek-chat', Date.now(), recordId, userId]
+                [fullAnalysis, model, Date.now(), recordId, userId]
               ).catch(err => console.error('保存AI分析失败:', err));
             }
 
@@ -306,7 +307,8 @@ export async function analyzeBaziSync(req: Request, res: Response): Promise<void
 
     // 获取API Key
     let apiKey = process.env.DEEPSEEK_API_KEY;
-    const apiUrl = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com';
+    const apiUrl = (process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com').replace(/\/+$/, '');
+    const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
 
     if (userId) {
       const user: any = await queryOne(
@@ -339,7 +341,7 @@ export async function analyzeBaziSync(req: Request, res: Response): Promise<void
     const response = await axios.post(
       `${apiUrl}/v1/chat/completions`,
       {
-        model: 'deepseek-chat',
+        model,
         messages: [
           {
             role: 'user',
@@ -366,7 +368,7 @@ export async function analyzeBaziSync(req: Request, res: Response): Promise<void
         `UPDATE bazi_records
          SET ai_analysis = ?, ai_model = ?, ai_analyzed_at = ?
          WHERE id = ? AND user_id = ?`,
-        [analysis, 'deepseek-chat', Date.now(), recordId, userId]
+        [analysis, model, Date.now(), recordId, userId]
       );
     }
 
@@ -374,7 +376,7 @@ export async function analyzeBaziSync(req: Request, res: Response): Promise<void
       success: true,
       data: {
         analysis,
-        model: 'deepseek-chat'
+        model
       }
     });
 

@@ -249,14 +249,19 @@ export async function testApiKey(req: Request, res: Response): Promise<void> {
     }
 
     console.log(`[${requestId}] [API Key Test] API Key 前缀: ${apiKey.substring(0, 10)}...`);
-    console.log(`[${requestId}] [API Key Test] 请求URL: https://api.deepseek.com/v1/chat/completions`);
+
+    const apiBase = (process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com').replace(/\/+$/, '');
+    const testUrl = `${apiBase}/v1/chat/completions`;
+    const testModel = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
+    console.log(`[${requestId}] [API Key Test] 请求URL: ${testUrl}`);
+    console.log(`[${requestId}] [API Key Test] 测试模型: ${testModel}`);
 
     try {
       // 使用带重试的请求
       const response = await axiosWithRetry({
-        url: 'https://api.deepseek.com/v1/chat/completions',
+        url: testUrl,
         data: {
-          model: 'deepseek-chat',
+          model: testModel,
           messages: [
             {
               role: 'user',

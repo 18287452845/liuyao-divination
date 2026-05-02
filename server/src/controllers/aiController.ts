@@ -4,7 +4,9 @@ import { Lunar } from 'lunar-javascript';
 import { normalizeLegacyText } from '../utils/textNormalize';
 
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
-const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
+const DEEPSEEK_API_BASE = (process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com').replace(/\/+$/, '');
+const DEEPSEEK_API_URL = `${DEEPSEEK_API_BASE}/v1/chat/completions`;
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
 
 export const analyzeGua = async (req: Request, res: Response) => {
   try {
@@ -30,7 +32,7 @@ export const analyzeGua = async (req: Request, res: Response) => {
     const response = await axios.post(
       DEEPSEEK_API_URL,
       {
-        model: 'deepseek-chat',
+        model: DEEPSEEK_MODEL,
         messages: [
           {
             role: 'system',
