@@ -106,8 +106,13 @@ ${dayunData.slice(0, 5).map((step, index) =>
 - 禁止在回答末尾添加任何免责声明或AI署名
 - 禁止输出类似"以上内容由XX生成"、"仅供参考"等声明
 - 直接给出专业分析内容，无需说明内容来源
+- **严禁使用任何身份引言或开场白**，例如：
+  - "好的，作为一位资深命理师，我来为您批注八字"
+  - "明白了，我将运用四柱八字理论..."
+  - "好的，让我为您分析..."
+- 直接从分析内容（第一个 Markdown 标题）开始输出，不要任何过渡性、自我介绍或确认性语句
 
-请按以上要求对以下八字进行详细批注：`;
+请按以上要求对以下八字进行详细批注（**直接从 Markdown 标题开始，不要任何开场白**）：`;
 
   const userPrompt = baziInfo + (question ? `\n\n【特别关注】：${question}` : '');
 
@@ -150,7 +155,8 @@ export async function analyzeBazi(req: Request, res: Response): Promise<void> {
 
     // 获取API Key（用户自定义优先）
     let apiKey = process.env.DEEPSEEK_API_KEY;
-    const apiUrl = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com';
+    const apiUrl = (process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com').replace(/\/+$/, '');
+    const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
 
     if (userId) {
       const user: any = await queryOne(
@@ -189,7 +195,7 @@ export async function analyzeBazi(req: Request, res: Response): Promise<void> {
     const response = await axios.post(
       `${apiUrl}/v1/chat/completions`,
       {
-        model: 'deepseek-chat',
+        model,
         messages: [
           {
             role: 'user',
@@ -226,7 +232,7 @@ export async function analyzeBazi(req: Request, res: Response): Promise<void> {
                 `UPDATE bazi_records
                  SET ai_analysis = ?, ai_model = ?, ai_analyzed_at = ?
                  WHERE id = ? AND user_id = ?`,
-                [fullAnalysis, 'deepseek-chat', Date.now(), recordId, userId]
+                [fullAnalysis, model, Date.now(), recordId, userId]
               ).catch(err => console.error('保存AI分析失败:', err));
             }
 
@@ -306,7 +312,8 @@ export async function analyzeBaziSync(req: Request, res: Response): Promise<void
 
     // 获取API Key
     let apiKey = process.env.DEEPSEEK_API_KEY;
-    const apiUrl = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com';
+    const apiUrl = (process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com').replace(/\/+$/, '');
+    const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
 
     if (userId) {
       const user: any = await queryOne(
@@ -339,7 +346,7 @@ export async function analyzeBaziSync(req: Request, res: Response): Promise<void
     const response = await axios.post(
       `${apiUrl}/v1/chat/completions`,
       {
-        model: 'deepseek-chat',
+        model,
         messages: [
           {
             role: 'user',
@@ -366,7 +373,7 @@ export async function analyzeBaziSync(req: Request, res: Response): Promise<void
         `UPDATE bazi_records
          SET ai_analysis = ?, ai_model = ?, ai_analyzed_at = ?
          WHERE id = ? AND user_id = ?`,
-        [analysis, 'deepseek-chat', Date.now(), recordId, userId]
+        [analysis, model, Date.now(), recordId, userId]
       );
     }
 
@@ -374,7 +381,7 @@ export async function analyzeBaziSync(req: Request, res: Response): Promise<void
       success: true,
       data: {
         analysis,
-        model: 'deepseek-chat'
+        model
       }
     });
 

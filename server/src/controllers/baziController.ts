@@ -448,7 +448,7 @@ export async function updateAiAnalysis(req: Request, res: Response): Promise<voi
 
     const affectedRows = await update(updateSql, [
       aiAnalysis,
-      aiModel || 'deepseek-chat',
+      aiModel || process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash',
       Date.now(),
       id,
       userId
