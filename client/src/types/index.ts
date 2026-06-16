@@ -1,6 +1,18 @@
 // 起卦方式
 export type DivinationMethod = 'time' | 'number' | 'manual' | 'input';
 
+export type DivinationCategory =
+  | 'wealth'
+  | 'career'
+  | 'relationship'
+  | 'health'
+  | 'exam'
+  | 'lawsuit'
+  | 'lost'
+  | 'travel'
+  | 'cooperation'
+  | 'general';
+
 // 性别类型
 export type Gender = '男' | '女' | '未知';
 
@@ -81,6 +93,94 @@ export interface YingQi {
   description: string;                // 详细说明
 }
 
+export interface YongShenLine {
+  position: number;
+  yaoName: string;
+  branch: string;
+  element: string;
+  sixRelative: string;
+  isMoving: boolean;
+  isKongWang: boolean;
+  state: string;
+  score: number;
+  notes: string[];
+}
+
+export interface LiuyaoJudgement {
+  category: DivinationCategory;
+  categoryLabel: string;
+  yongShen: {
+    category: DivinationCategory;
+    categoryLabel: string;
+    primaryRelative: string;
+    reason: string;
+    lines: YongShenLine[];
+    fuShen?: {
+      position: number;
+      yaoName: string;
+      branch: string;
+      element: string;
+      relation: string;
+      canComeOut: boolean;
+      notes: string[];
+    };
+  };
+  shiYing: {
+    shi: {
+      position: number;
+      yaoName: string;
+      branch: string;
+      element: string;
+      sixRelative: string;
+      score: number;
+    };
+    ying: {
+      position: number;
+      yaoName: string;
+      branch: string;
+      element: string;
+      sixRelative: string;
+      score: number;
+    };
+    relation: string;
+    effect: string;
+  };
+  usefulGods: Array<{
+    type: '原神' | '忌神' | '仇神' | '同类';
+    position: number;
+    yaoName: string;
+    branch: string;
+    element: string;
+    sixRelative: string;
+    isMoving: boolean;
+    isKongWang: boolean;
+    score: number;
+    effect: string;
+  }>;
+  movingLines: Array<{
+    position: number;
+    yaoName: string;
+    sixRelative: string;
+    branch: string;
+    element: string;
+    changeType?: string;
+    isGood?: boolean;
+    effectOnYongShen: string;
+    scoreDelta: number;
+  }>;
+  timingHints: Array<{
+    type: string;
+    branch?: string;
+    period: string;
+    confidence: number;
+    basis: string;
+  }>;
+  totalScore: number;
+  finalTendency: '吉' | '凶' | '平' | '先吉后凶' | '先凶后吉' | '不成' | '待时';
+  confidence: number;
+  reasoningSteps: string[];
+}
+
 // 装卦信息
 export interface GuaDecoration {
   earthBranches: string[]; // 地支
@@ -105,6 +205,8 @@ export interface GuaDecoration {
   fuShens: FuShen[];
   // 应期推断
   yingQi: YingQi[];
+  // 传统规则引擎初判
+  traditionalAnalysis?: LiuyaoJudgement;
   // 卦辞和爻辞（从gua_data表加载）
   guaCi?: string;               // 卦辞（原文+白话）
   yaoCi?: string[];             // 爻辞数组（6个，原文+白话）

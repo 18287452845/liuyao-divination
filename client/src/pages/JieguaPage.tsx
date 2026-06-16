@@ -171,14 +171,14 @@ const JieguaPage: React.FC = () => {
     <>
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
       <ScrollToTop />
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <div className="container mx-auto px-4 py-8 max-w-[1440px]">
         <h1 className="text-4xl font-bold text-center mb-8 text-primary">AI 智能解卦</h1>
 
-        <div className="grid lg:grid-cols-2 gap-8">
-          <div className="space-y-6">
+        <div className="grid gap-6 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)] xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] xl:gap-8 items-start">
+          <aside className="space-y-5 lg:sticky lg:top-24">
             <div className="card">
-              <h2 className="text-xl font-semibold mb-4 text-gray-700">占问信息</h2>
-              <p className="text-lg text-gray-800">{record.question}</p>
+              <h2 className="text-lg font-semibold mb-3 text-gray-700">占问信息</h2>
+              <p className="text-base leading-relaxed text-gray-800">{record.question}</p>
               <p className="text-sm text-gray-600 mt-2">性别：{formatGender(record.gender)}</p>
               {formatBazi(record.bazi) && <p className="text-sm text-gray-600 mt-1">八字：{formatBazi(record.bazi)}</p>}
               <p className="text-sm text-gray-500 mt-2">{new Date(record.timestamp).toLocaleString('zh-CN')}</p>
@@ -187,14 +187,47 @@ const JieguaPage: React.FC = () => {
             <GuaDisplay gua={record.benGua} decoration={record.decoration} title="本卦" showDecoration={true} />
 
             {record.bianGua && <GuaDisplay gua={record.bianGua} title="变卦" showDecoration={false} />}
-          </div>
 
-          <div className="space-y-6">
-            <div className="card">
+            {record.decoration.traditionalAnalysis && (
+              <div className="card">
+                <h2 className="text-lg font-semibold mb-3 text-gray-700">传统规则初判</h2>
+                <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+                  <div className="p-3 rounded-lg bg-gray-50">
+                    <p className="text-gray-500">类别</p>
+                    <p className="font-semibold text-gray-800">{record.decoration.traditionalAnalysis.categoryLabel}</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-gray-50">
+                    <p className="text-gray-500">倾向</p>
+                    <p className="font-semibold text-primary">{record.decoration.traditionalAnalysis.finalTendency}</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-gray-50">
+                    <p className="text-gray-500">用神</p>
+                    <p className="font-semibold text-gray-800">{record.decoration.traditionalAnalysis.yongShen.primaryRelative}</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-gray-50">
+                    <p className="text-gray-500">置信度</p>
+                    <p className="font-semibold text-gray-800">
+                      {Math.round(record.decoration.traditionalAnalysis.confidence * 100)}%
+                    </p>
+                  </div>
+                </div>
+                <ul className="space-y-2 text-sm text-gray-700">
+                  {record.decoration.traditionalAnalysis.reasoningSteps.slice(0, 4).map((step, index) => (
+                    <li key={index} className="leading-relaxed">
+                      {index + 1}. {step}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </aside>
+
+          <section className="space-y-6 min-w-0">
+            <div className="card min-h-[520px]">
               <h2 className="text-xl font-semibold mb-4 text-gray-700">AI 解卦分析</h2>
 
               {!analysis && !analyzing && (
-                <div className="text-center py-12">
+                <div className="text-center py-16">
                   <p className="text-gray-500 mb-6">点击下方按钮开始 AI 解卦。</p>
                   <button onClick={handleAnalyze} className="btn-primary text-lg px-8 py-3">
                     开始解卦
@@ -203,7 +236,7 @@ const JieguaPage: React.FC = () => {
               )}
 
               {analyzing && (
-                <div className="text-center py-12">
+                <div className="text-center py-16">
                   <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
                   <p className="text-gray-600">AI 正在分析卦象，请稍候...</p>
                 </div>
@@ -271,27 +304,27 @@ const JieguaPage: React.FC = () => {
               )}
             </div>
 
-            <div className="flex flex-wrap gap-4">
-              <button onClick={() => navigate(`/paidian/${id}`)} className="flex-1 btn-secondary min-w-[120px]">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <button onClick={() => navigate(`/paidian/${id}`)} className="btn-secondary min-w-0">
                 返回排盘
               </button>
               <button
                 onClick={handleShare}
-                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg shadow-md transition-all duration-300 min-w-[120px]"
+                className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg shadow-md transition-all duration-300 min-w-0"
               >
                 复制分享
               </button>
-              <button onClick={() => navigate('/history')} className="flex-1 btn-secondary min-w-[120px]">
+              <button onClick={() => navigate('/history')} className="btn-secondary min-w-0">
                 历史记录
               </button>
               <button
                 onClick={() => navigate('/')}
-                className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-6 rounded-lg shadow-md transition-all duration-300 min-w-[120px]"
+                className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-6 rounded-lg shadow-md transition-all duration-300 min-w-0"
               >
                 重新起卦
               </button>
             </div>
-          </div>
+          </section>
         </div>
       </div>
     </>

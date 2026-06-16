@@ -4,700 +4,418 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a traditional Chinese divination system combining modern web technologies with AI-powered interpretation. It includes:
-- **Liuyao (六爻)** - Six Lines divination with three methods (time-based, number-based, manual coin-tossing)
-- **Bazi (八字)** - Four Pillars of Destiny with complete chart calculation and AI analysis
+This is a traditional Chinese divination system combining Liuyao (六爻), Bazi (八字), and AI-powered interpretation through the DeepSeek API.
 
-The system generates complete hexagram/Bazi layouts and integrates with DeepSeek API for intelligent interpretation.
+Core product areas:
+- Liuyao divination: time-based, number-based, manual coin-tossing, and manual line input.
+- Traditional Liuyao rule judgement: structured analysis based on yongshen, month/day strength, moving lines, fu shen, shi-ying, and timing hints.
+- Bazi chart calculation: four pillars, ten gods, five-element analysis, shensha, and dayun.
+- AI analysis: DeepSeek-backed streaming interpretation for Liuyao and Bazi.
+- Auth/admin: JWT authentication, RBAC permissions, sessions, audit logs, invite codes, and user API key settings.
 
-**Tech Stack:**
-- Frontend: React 18 + TypeScript + Vite + Tailwind CSS + React Router v6
-- Backend: Node.js + Express + TypeScript
+Tech stack:
+- Frontend: React 18, TypeScript, Vite, Tailwind CSS, React Router v6
+- Backend: Node.js, Express, TypeScript
 - Database: MySQL 5.7+
-- Authentication: JWT-based auth with bcrypt password hashing
-- AI: DeepSeek API for hexagram and Bazi interpretation
+- Auth: JWT with bcrypt password hashing
+- AI: DeepSeek API, streamed with SSE
 
 ## Development Commands
 
-### Installation
+Install dependencies:
 ```bash
-# Install all dependencies (root + client + server)
 npm run install:all
-
-# Or install separately
-npm install                    # Root dependencies
-cd client && npm install       # Frontend dependencies
-cd server && npm install       # Backend dependencies
 ```
 
-### Running the Application
+Run development servers:
 ```bash
-# Development mode (runs both frontend and backend concurrently)
-npm run dev                    # From root directory
-
-# Or run separately
-cd client && npm run dev       # Frontend only (port 3000)
-cd server && npm run dev       # Backend only (port 5000)
+npm run dev
 ```
 
-### Building
+Run separately:
 ```bash
-# Build frontend
+cd client && npm run dev
+cd server && npm run dev
+```
+
+Build:
+```bash
+npm run build
 cd client && npm run build
-
-# Build backend
 cd server && npm run build
-
-# Preview production build (frontend)
-cd client && npm run preview
-
-# Production mode (backend)
-cd server && npm run start
 ```
 
-### Database Verification
+Database verification:
 ```bash
-# Verify and auto-repair database
 cd server && npm run verify:db
 ```
 
-### Database Setup
-
-**Using Docker (Recommended):**
+Docker database setup:
 ```bash
-# Start MySQL and auto-initialize database
 docker-compose up -d mysql db-init
-
-# Check initialization status
 docker-compose logs db-init
 ```
 
-**Manual Setup:**
-```bash
-# MySQL initialization (Windows)
-cd server && setup_mysql.bat
+Default local ports:
+- Frontend dev server: `3000`
+- Backend API server: `5000`
+- Frontend proxy: `/api` -> `http://localhost:5000`
 
-# MySQL initialization (Unix/Mac)
-cd server && chmod +x setup_mysql.sh && ./setup_mysql.sh
+Default test users from SQL init data:
+- Admin: `admin` / `admin123`
+- User: `testuser` / `test123`
 
-# Or manually run SQL files in order
-mysql -u root -p < server/sql/00_init_complete.sql
-mysql -u root -p < server/sql/01_init_data.sql
+Change these immediately in production.
+
+## Repository Structure
+
+```text
+.
+├── client/                 React frontend
+├── server/                 Express backend
+├── server/sql/             MySQL schema and seed scripts
+├── doc/                    Project documentation
+├── docker-compose.yml      Local Docker deployment
+├── nginx.conf              Frontend reverse proxy config
+└── package.json            Root scripts, including concurrently dev mode
 ```
 
-**Note:** Ensure the MySQL service or Docker container is healthy before starting the backend. The database includes authentication, permissions, user management, and admin features.
+## Frontend Architecture
 
-## Architecture
+Important files:
+- `client/src/App.tsx`: main route table and protected/admin route wiring.
+- `client/src/contexts/AuthContext.tsx`: auth state, login/register/logout, permission helpers.
+- `client/src/utils/api.ts`: Liuyao API client and streaming AI helper.
+- `client/src/utils/baziApi.ts`: Bazi API client and streaming AI helper.
+- `client/src/types/index.ts`: Liuyao frontend types.
+- `client/src/types/bazi.ts`: Bazi frontend types.
 
-### Monorepo Structure
+Main pages:
+- `DivinationPage.tsx`: Liuyao creation form, including divination method and question category.
+- `PaidianPage.tsx`: Liuyao chart display, traditional rule judgement, gua/yao text, timing hints.
+- `JieguaPage.tsx`: AI Liuyao interpretation page.
+- `HistoryPage.tsx`: Liuyao history.
+- `BaziInputPage.tsx`: Bazi input.
+- `BaziDisplayPage.tsx`: Bazi chart display.
+- `BaziAiAnalysisPage.tsx`: AI Bazi analysis.
+- `BaziHistoryPage.tsx`: Bazi history.
+- `ToolsPage.tsx`: utilities.
+- `ApiKeySettingsPage.tsx`: user-level DeepSeek API key management.
+
+Admin pages live in `client/src/pages/admin/`.
+
+## Backend Architecture
+
+Important files:
+- `server/src/index.ts`: Express setup, JSON parsing, CORS, routes, health check, DB initialization.
+- `server/src/routes/index.ts`: central API route table.
+- `server/src/routes/baziRoutes.ts`: Bazi route table.
+- `server/src/models/database.ts`: MySQL connection pool and legacy Liuyao models.
+- `server/src/middleware/auth.ts`: JWT authentication and RBAC checks.
+- `server/src/middleware/normalizeResponse.ts`: legacy text normalization wrapper.
+- `server/src/utils/textNormalize.ts`: compatibility map for historical mojibake strings.
+
+Main controllers:
+- `authController.ts`
+- `divinationController.ts`
+- `aiController.ts`
+- `baziController.ts`
+- `aiController.bazi.ts`
+- `apiKeyController.ts`
+- `userController.ts`
+- `roleController.ts`
+- `sessionController.ts`
+- `securityController.ts`
+- `inviteController.ts`
+- `auditController.ts`
+- `toolsController.ts`
+
+Route categories:
+- `/api/auth/*`
+- `/api/divination/*`
+- `/api/records/*`
+- `/api/ai/*`
+- `/api/bazi/*`
+- `/api/tools/*`
+- `/api/user/api-key/*`
+- `/api/users/*`, `/api/roles/*`, `/api/permissions/*`
+- `/api/logs/*`, `/api/sessions/*`, `/api/security/*`
+- `/api/invite-codes/*`, `/api/audit-logs/*`
+
+Most routes require `authenticate`; admin routes additionally require permissions or admin role checks.
+
+## Liuyao Core
+
+Primary files:
+- `server/src/utils/liuyao.ts`: hexagram generation, decoration, moving lines, advanced Liuyao attributes.
+- `server/src/utils/bagong.ts`: Eight Palace system, gua palace, shi-ying positions.
+- `server/src/utils/constants.ts`: traditional mapping tables.
+- `server/src/utils/liuyaoAnalysis.ts`: structured traditional Liuyao rule judgement.
+
+Generation flow in `liuyao.ts`:
+1. Generate basic hexagram from method: time, number, manual coin results, or manual input.
+2. Apply Najia (纳甲), Earth Branches (地支), Five Elements (五行).
+3. Calculate Six Relatives (六亲), Six Spirits (六神), and Shi-Ying (世应).
+4. Generate changing hexagram if any line moves.
+5. Calculate Kong Wang (空亡), line strength, moving-line transformations, yao relations, Fu Shen (伏神), and timing hints.
+
+Traditional judgement flow in `liuyaoAnalysis.ts`:
+1. Infer or receive question category.
+2. Select yongshen (用神).
+3. Score yongshen by month/day, movement, kong wang, and transformations.
+4. Identify yuan shen, ji shen, chou shen, and same-element helpers.
+5. Analyze moving lines and their effect on yongshen.
+6. Analyze shi-ying relationship.
+7. Build timing hints.
+8. Return `traditionalAnalysis` with final tendency, confidence, score, and reasoning steps.
+
+`divinationController.ts` stores the traditional judgement under `decoration.traditionalAnalysis`.
+
+AI prompt construction in `aiController.ts` includes this structured judgement and instructs the model to follow it rather than freely inventing a conclusion.
+
+## Bazi Core
+
+Primary files:
+- `server/src/utils/bazi.ts`
+- `server/src/utils/baziConstants.ts`
+- `server/src/types/bazi.ts`
+- `server/src/controllers/baziController.ts`
+- `server/src/controllers/aiController.bazi.ts`
+
+Bazi flow:
+1. Convert birth datetime with `lunar-javascript`.
+2. Calculate year, month, day, and hour pillars.
+3. Determine day master.
+4. Calculate ten gods and five-element distribution.
+5. Analyze relations, shensha, kong wang, and dayun.
+6. Save record to `bazi_records`.
+7. Stream AI analysis through `/api/bazi/ai/analyze`.
+
+## Database Notes
+
+Important SQL files:
+- `server/sql/00_init_complete.sql`: main schema.
+- `server/sql/01_init_data.sql`: seed data.
+- `server/sql/02_bazi_tables.sql`: Bazi tables and permissions.
+- `server/sql/04_insert_gua_data.sql`
+- `server/sql/05_insert_gua_texts_part1.sql`
+- `server/sql/05_insert_gua_texts_part2.sql`
+
+Main tables:
+- `divination_records`
+- `bazi_records`
+- `users`
+- `roles`
+- `permissions`
+- `user_roles`
+- `role_permissions`
+- `user_sessions`
+- `token_blacklist`
+- `invite_codes`
+- `login_logs`
+- `operation_logs`
+- `audit_logs`
+- `trigrams`
+- `gua_data`
+
+JSON storage:
+- Liuyao records store `ben_gua`, `bian_gua`, `decoration`, and `ai_analysis`.
+- Bazi records store `bazi_data`, `dayun_data`, and AI analysis fields.
+
+Important caveat:
+- Bazi records are explicitly queried by `user_id`.
+- The Liuyao schema has `user_id`, but the current legacy `DivinationRecordModel` path may not fully enforce user isolation everywhere. Be careful when modifying records APIs.
+
+## Authentication and Authorization
+
+Auth flow:
+1. Login returns access and refresh tokens.
+2. Frontend stores tokens in `localStorage`.
+3. Axios/fetch helpers attach `Authorization: Bearer <token>`.
+4. Backend `authenticate` loads user roles and permissions.
+5. `requirePermissions(...)` and `requireRoles(...)` enforce access.
+
+Permission examples:
+- `divination:create`
+- `divination:view`
+- `divination:delete`
+- `divination:aiAnalysis`
+- `bazi:create`
+- `bazi:view`
+- `bazi:delete`
+- `bazi:aiAnalysis`
+- `user:view`, `user:create`, `user:edit`, `user:delete`
+- `role:view`, `role:create`, `role:edit`, `role:delete`
+- `session:view`, `session:manage`
+- `invite:*`
+- `audit:*`
+
+## AI Integration
+
+Liuyao AI:
+- Frontend: `analyzeGuaStream` in `client/src/utils/api.ts`
+- Backend: `analyzeGua` in `server/src/controllers/aiController.ts`
+- Endpoint: `POST /api/ai/analyze`
+
+Bazi AI:
+- Frontend: `analyzeBaziStream` in `client/src/utils/baziApi.ts`
+- Backend: `analyzeBazi` in `server/src/controllers/aiController.bazi.ts`
+- Endpoint: `POST /api/bazi/ai/analyze`
+
+Both use SSE-style streamed responses:
+```text
+data: {"content":"..."}
+
+data: [DONE]
 ```
-lt/
-├── client/              # React frontend (Vite + TypeScript)
-├── server/              # Express backend (TypeScript)
-└── package.json         # Root config with concurrently for dev
+
+DeepSeek configuration:
+```env
+DEEPSEEK_API_KEY=sk-your-key
+DEEPSEEK_API_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-v4-flash
 ```
 
-### Core Algorithm Flow
-
-**Divination Generation (`server/src/utils/liuyao.ts`):**
-1. Generate hexagram based on method (time/number/manual)
-2. Apply Najia (纳甲) - heavenly stems assignment
-3. Apply Earth Branches (地支) - twelve branches
-4. Calculate Five Elements (五行) based on earth branches
-5. Determine Six Relatives (六亲) - relationship to hexagram palace
-6. Assign Six Spirits (六神) - based on day's earth branch
-7. Mark Shi-Ying (世应) positions using eight palace system (`bagong.ts`)
-8. Generate changing hexagram if moving lines exist
-9. Calculate advanced features:
-   - Kong Wang (空亡) - void positions
-   - Yao States (爻位旺衰) - line prosperity/decline
-   - Change Analyses (化爻分析) - transformation analysis
-   - Yao Relations (爻位关系) - six harmonies/clashes
-   - Fu Shen (伏神) - hidden spirits
-
-**Eight Palace System (`server/src/utils/bagong.ts`):**
-- Each of 8 trigrams has a "palace" (宫) with 8 related hexagrams
-- Determines Shi (世) and Ying (应) positions
-- Critical for Six Relatives calculation
-
-**Bazi (八字) Calculation Flow (`server/src/utils/bazi.ts`):**
-1. Convert birth datetime to lunar calendar using `lunar-javascript`
-2. Calculate Four Pillars (四柱): Year, Month, Day, Hour stems and branches
-3. Determine Day Master (日主) from day stem
-4. Calculate Ten Gods (十神) for each stem/branch based on relationship to Day Master
-5. Analyze Five Elements (五行) strength: count occurrences, determine strong/weak
-6. Identify Yongshen (用神) and Jishen (忌神) - favorable/unfavorable elements
-7. Calculate Nayin (纳音) for each pillar
-8. Compute Dayun (大运) - major luck periods:
-   - Determine forward/backward direction based on gender and year stem polarity
-   - Calculate starting age from birth to next solar term
-   - Generate 8 luck periods with stems and branches
-9. Store complete Bazi chart as JSON in database
-
-### Database Schema
-
-**Main Tables:**
-- `divination_records` - Stores complete hexagram records with JSON fields for:
-  - `ben_gua` (original hexagram)
-  - `bian_gua` (changing hexagram)
-  - `decoration` (all hexagram attributes)
-  - `ai_analysis` (AI interpretation text)
-  - `user_id` (user data isolation)
-  - Verification feedback fields (`is_verified`, `actual_result`, `accuracy_rating`, etc.)
-
-**Authentication & Authorization Tables:**
-- `users` - User accounts with password hashing, status, API keys, login security
-- `roles` - Role-based access control (RBAC)
-- `permissions` - Granular permissions system
-- `user_roles` - Many-to-many user-role relationships
-- `role_permissions` - Many-to-many role-permission relationships
-
-**Supporting Tables:**
-- `trigrams` - Eight basic trigrams reference data
-- `gua_data` - 64 hexagrams with names and traditional texts
-- `bazi_records` - Bazi (八字) records with four pillars, ten gods, dayun
-- `jie_qi_data` - Solar terms for precise dayun calculation
-- `liu_shi_jia_zi` - 60 Jiazi table with nayin elements
-- `login_logs` - User login history and security tracking
-- `operation_logs` - User activity audit trail
-- `user_sessions` - Active session management
-- `invite_codes` - Invitation code system for user registration
-- `audit_logs` - Comprehensive system audit logs
-
-**Important:** Hexagram data is stored as JSON to preserve complex nested structures. When querying, parse JSON fields on the backend before sending to frontend.
-
-### Frontend Architecture
-
-**Page Components (`client/src/pages/`):**
-- `LoginPage.tsx` - User authentication page
-- `DivinationPage.tsx` - Main divination interface with method selection
-- `PaidianPage.tsx` - Hexagram display page (排盘 = layout/arrangement)
-- `JieguaPage.tsx` - AI interpretation page (解卦 = interpretation)
-- `HistoryPage.tsx` - Historical records browser
-- `BaziInputPage.tsx` - Bazi (八字) input form
-- `BaziDisplayPage.tsx` - Bazi chart display with four pillars
-- `BaziHistoryPage.tsx` - Bazi records browser
-- `ToolsPage.tsx` - Various utilities (calendar conversion, branch relations, etc.)
-- `ApiKeySettingsPage.tsx` - User's personal DeepSeek API key management
-- `ChangePasswordPage.tsx` - Password change functionality
-
-**Admin Pages (`client/src/pages/admin/`):**
-- `DashboardPage.tsx` - Admin dashboard with statistics
-- `UserManagementPage.tsx` - User CRUD operations
-- `RoleManagementPage.tsx` - Role and permission management
-- `LoginLogsPage.tsx` - Login history and security monitoring
-- `SessionManagementPage.tsx` - Active session management
-- `InviteManagementPage.tsx` - Invitation code management
-
-**Routing:** Uses React Router v6. Main routes configured in `App.tsx`:
-- Public route: `/login`
-- Protected routes (require authentication): All other pages
-- Admin routes (require admin permissions): `/admin/*`
-
-**Authentication Flow:**
-1. User logs in via LoginPage → JWT token stored in localStorage
-2. `AuthContext` provides authentication state globally
-3. `ProtectedRoute` component guards authenticated routes
-4. `authenticate` middleware on backend validates JWT tokens
-5. `requirePermissions` and `requireRoles` middleware enforce authorization
-
-**Data Flow:**
-1. User performs divination → POST `/api/divination`
-2. Backend generates complete hexagram with all attributes
-3. Navigate to PaidianPage to display hexagram
-4. User clicks "AI Analysis" → POST `/api/ai/analyze` (SSE stream)
-5. Save to history → available in HistoryPage
-
-**Bazi Data Flow:**
-1. User inputs birth info → POST `/api/bazi`
-2. Backend calculates complete Bazi chart with all attributes
-3. Navigate to BaziDisplayPage to display chart
-4. User clicks "AI Analysis" → POST `/api/bazi/ai/analyze` (SSE stream)
-5. Save to history → available in BaziHistoryPage
-
-### Backend Architecture
-
-**Route Organization (`server/src/routes/index.ts`):**
-All API routes are centrally defined and protected by authentication/authorization middleware:
-
-**Route Categories:**
-- `/api/auth/*` - Authentication (login, register, logout, change password)
-- `/api/divination/*` - Divination operations (create, simulate)
-- `/api/records/*` - Record management (CRUD, verification feedback)
-- `/api/ai/*` - AI analysis (streaming SSE)
-- `/api/bazi/*` - Bazi operations (create, records, AI analysis)
-- `/api/tools/*` - Utility functions (calendar, branch relations, gua lookup)
-- `/api/users/*` - User management (admin only)
-- `/api/roles/*` - Role management (admin only)
-- `/api/permissions/*` - Permission management (admin only)
-- `/api/logs/*` - Log viewing and export (admin only)
-- `/api/sessions/*` - Session management
-- `/api/security/*` - Security operations (2FA, account locking)
-- `/api/invite-codes/*` - Invitation code management (admin only)
-- `/api/audit-logs/*` - Audit log viewing (admin only)
-- `/api/user/api-key/*` - Personal API key management
-
-**Middleware Stack:**
-1. `authenticate` - Validates JWT token, attaches `req.user`
-2. `requirePermissions(['permission:action'])` - Checks user has specific permissions
-3. `requireRoles(['roleName'])` - Checks user has specific roles
-4. Controllers execute business logic
-5. Responses sent to client
-
-**Controllers (`server/src/controllers/`):**
-- `authController.ts` - Authentication and user profile
-- `divinationController.ts` - Divination logic and records
-- `baziController.ts` - Bazi (八字) chart calculation and management
-- `aiController.ts` - AI analysis with SSE streaming
-- `userController.ts` - User CRUD operations
-- `roleController.ts` - Role and permission management
-- `logController.ts` - Login and operation logs
-- `sessionController.ts` - Session management
-- `securityController.ts` - Security features
-- `inviteController.ts` - Invitation code system
-- `auditController.ts` - Audit logging
-- `toolsController.ts` - Utility functions
+User-level API keys can override the system key.
 
 ## Environment Configuration
 
-### Required: DeepSeek API Key
+Create `server/.env` from `server/.env.example`.
 
-Create `server/.env` from `server/.env.example`:
+Typical local values:
 ```env
-# DeepSeek API Configuration (Required)
-DEEPSEEK_API_KEY=sk-your-actual-key-here
-DEEPSEEK_API_URL=https://api.deepseek.com
+PORT=5000
+HOST=0.0.0.0
 
-# JWT Configuration (Required for Authentication)
-JWT_SECRET=your-secure-random-secret-key
-JWT_EXPIRES_IN=7d
-JWT_REFRESH_EXPIRES_IN=30d
-```
-
-**Getting a key:** See `DEEPSEEK_CONFIG.md` for detailed instructions.
-
-**Note:** Users can optionally configure their own DeepSeek API keys via the API Settings page, which takes precedence over the system default key.
-
-### Database Configuration
-
-Configure MySQL credentials (Docker Compose exposes the `mysql` host by default):
-```env
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=123456
 DB_NAME=liuyao_db
+
+JWT_SECRET=replace-with-strong-random-secret
+JWT_EXPIRES_IN=7d
+JWT_REFRESH_EXPIRES_IN=30d
+
+DEEPSEEK_API_KEY=sk-your-key
+DEEPSEEK_API_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-v4-flash
 ```
 
-## Key Technical Concepts
+Docker uses service host `mysql`, not `localhost`, inside containers.
 
-### Authentication & Authorization
+## Development Guidelines
 
-**JWT-Based Authentication:**
-- Login generates access token (default 7 days) and refresh token (default 30 days)
-- Tokens stored in localStorage on frontend
-- Backend middleware (`authenticate`) validates tokens on protected routes
+When changing Liuyao:
+- Keep `Gua`, `GuaDecoration`, and stored JSON compatibility in mind.
+- Prefer adding new fields to `decoration` rather than changing existing field shapes.
+- If modifying traditional rules, keep outputs structured and explainable.
+- AI should consume structured judgement; it should not be the source of core divination logic.
 
-**Role-Based Access Control (RBAC):**
-- Three-tier permission model: Users → Roles → Permissions
-- Middleware functions: `requirePermissions(['permission:action'])`, `requireRoles(['roleName'])`
-- Default roles: Admin (full access), User (basic divination access)
-- Granular permissions for divination, users, roles, logs, sessions, etc.
+When changing Bazi:
+- Keep API response fields in camelCase on the frontend.
+- Avoid circular references in JSON stored to `bazi_records`.
+- Re-check dayun direction and qiyun calculations after touching gender/year-stem logic.
 
-**Permission Categories:**
-- `divination:*` - Divination operations (create, view, delete, aiAnalysis)
-- `user:*` - User management (view, create, edit, delete, status)
-- `role:*` - Role management (view, create, edit, delete, assignPermission)
-- `permission:*` - Permission viewing
-- `log:*` - Log management (viewLogin, viewOperation, delete, export)
-- `session:*` - Session management (view, manage)
-- `security:*` - Security operations (view, lockUnlock, forcePasswordReset, auditReport)
-- `invite:*` - Invite code management
-- `audit:*` - Audit log operations
+When changing auth:
+- Verify both frontend route protection and backend middleware checks.
+- Check permission strings exactly; many routes depend on literal permission codes.
 
-**User Data Isolation:**
-- Regular users can only access their own divination records
-- Admins can access all records
-- Implemented via `user_id` field in `divination_records` table
+When changing database queries:
+- Use parameterized queries.
+- Parse JSON fields on the backend before sending to the frontend.
+- Be especially careful about user data isolation.
 
-### Najia (纳甲) System
-Traditional method of assigning heavenly stems to hexagram lines:
-- 乾 (Qian): Inner lines → 甲, Outer lines → 壬
-- 坤 (Kun): Inner lines → 乙, Outer lines → 癸
-- Other six trigrams: Same stem for all six lines
+When changing Chinese text:
+- Use UTF-8.
+- Avoid introducing mojibake strings.
+- Keep `textNormalize.ts` compatibility unless migrating all legacy data and constants at once.
 
-See `server/src/utils/constants.ts` for complete mapping tables.
+## Manual Testing Checklist
 
-### Six Relatives (六亲) Calculation
-Determined by relationship between line's Five Element and hexagram palace's Five Element:
-- Same element → Brothers (兄弟)
-- Element that palace generates → Children (子孙)
-- Element that palace is generated by → Parents (父母)
-- Element that palace controls → Wife/Wealth (妻财)
-- Element that controls palace → Officials/Ghosts (官鬼)
+Basic Liuyao flow:
+1. Start app with `npm run dev`.
+2. Log in as admin or test user.
+3. Create Liuyao divination with each method.
+4. Confirm Paidian page shows gua, moving lines, decoration, timing hints, and traditional judgement.
+5. Run AI analysis and confirm streamed response completes.
+6. Confirm record appears in history.
 
-**Implementation:** `calculateSixRelatives()` in `liuyao.ts`
+Basic Bazi flow:
+1. Open `/bazi`.
+2. Create a Bazi record.
+3. Confirm four pillars, ten gods, five-element analysis, shensha, kong wang, and dayun display.
+4. Run AI analysis.
+5. Confirm record appears in Bazi history.
 
-### Moving Lines (动爻)
-- Old Yang (老阳 9) → Changes to Yin
-- Old Yin (老阴 6) → Changes to Yang
-- Young Yang/Yin don't change
-- Moving lines are marked in `changes` array
+Admin flow:
+1. Open `/admin`.
+2. Verify users, roles, sessions, invite codes, and logs load for admin.
+3. Confirm non-admin users cannot access admin routes.
 
-### Bazi Ten Gods (十神)
-Relationship between elements and the Day Master (日主):
-- Same element: Bi Jian (比肩) / Jie Cai (劫财) - same/opposite polarity
-- Element Day Master produces: Shi Shen (食神) / Shang Guan (伤官)
-- Element that produces Day Master: Zheng Yin (正印) / Pian Yin (偏印)
-- Element Day Master controls: Zheng Cai (正财) / Pian Cai (偏财)
-- Element that controls Day Master: Zheng Guan (正官) / Qi Sha (七杀)
-
-**Implementation:** `calculateShiShen()` in `bazi.ts`
-
-### AI Analysis Integration
-
-**Streaming Response:** Uses Server-Sent Events (SSE)
-```typescript
-// Backend (aiController.ts)
-res.setHeader('Content-Type', 'text/event-stream');
-// Stream chunks as they arrive from DeepSeek
-
-// Frontend (JieguaPage.tsx)
-const eventSource = new EventSource(url);
-eventSource.onmessage = (event) => {
-  // Append chunks to display
-};
-```
-
-**Prompt Construction:** AI receives complete hexagram context including all attributes, moving lines, and traditional interpretations when available.
-
-## Common Development Tasks
-
-### Adding a New Divination Method
-
-1. Update type: `client/src/types/index.ts`
-   ```typescript
-   export type DivinationMethod = 'time' | 'number' | 'manual' | 'newmethod';
-   ```
-
-2. Implement algorithm: `server/src/utils/liuyao.ts`
-   ```typescript
-   export function newMethodDivination(params): Gua { /* ... */ }
-   ```
-
-3. Add controller handler: `server/src/controllers/divinationController.ts`
-   ```typescript
-   case 'newmethod':
-     result = newMethodDivination(req.body.methodParams);
-     break;
-   ```
-
-4. Add UI: `client/src/pages/DivinationPage.tsx`
-
-### Modifying Bazi Calculations
-
-Core Bazi logic is in `server/src/utils/bazi.ts`. Key functions:
-- `calculateBazi()` - Main entry point for Bazi calculation
-- `calculateSiZhu()` - Calculate four pillars from birth datetime
-- `calculateShiShen()` - Calculate ten gods relationships
-- `calculateWuXingStrength()` - Analyze five elements strength
-- `calculateDayun()` - Calculate major luck periods
-
-The `lunar-javascript` library handles calendar conversions and solar terms.
-
-### Modifying Hexagram Attributes
-
-Core decoration logic is in `decorateGua()` function in `liuyao.ts`. This function:
-- Takes a basic hexagram (lines only)
-- Adds all traditional attributes (Najia, branches, elements, etc.)
-- Returns complete `GuaDecoration` object
-
-**When modifying:** Ensure changes maintain compatibility with JSON storage schema in database.
-
-### Working with Traditional Chinese Elements
-
-All constant mappings are centralized in `server/src/utils/constants.ts`:
-- `TRIGRAMS` - Eight trigrams with symbols and elements
-- `GUA_NAMES` - 64 hexagram names
-- `NAJIA` - Heavenly stem assignments
-- `EARTH_BRANCHES` - Earthly branch assignments
-- `FIVE_ELEMENTS` - Element mappings for branches
-- `SIX_RELATIVES_MAP` - Relative relationships between elements
-- `SIX_SPIRITS` - Spirit sequence for days
-- `KONG_WANG_MAP` - Void calculation table
-- `LIU_HE` / `LIU_CHONG` - Six harmonies/clashes
-- `SAN_HE` / `BRANCH_SAN_HE` - Three harmonies
-
-**Reference:** `server/src/utils/najia_reference.md` contains traditional reference material.
-
-## Admin Features
-
-The system includes comprehensive admin functionality accessible at `/admin`:
-
-**User Management:**
-- Create, edit, delete users
-- Enable/disable user accounts
-- Reset user passwords
-- View user details and roles
-
-**Role & Permission Management:**
-- Create custom roles with specific permissions
-- Assign permissions to roles
-- Assign roles to users
-- Enable/disable roles
-
-**Session Management:**
-- View all active sessions across users
-- Invalidate specific sessions
-- Force logout users
-- Session statistics and monitoring
-
-**Login & Activity Logs:**
-- View login history with IP addresses and user agents
-- Track user operations (create, update, delete actions)
-- Export logs for audit purposes
-- Filter and search log entries
-
-**Invite Code System:**
-- Generate invitation codes for user registration
-- Set usage limits and expiration dates
-- Track invite code usage
-- Batch create codes
-
-**Security Features:**
-- Failed login attempt tracking
-- Account lockout after multiple failures
-- Password change enforcement
-- API key management (system and user-level)
-
-## Deployment
-
-**Docker Deployment (Recommended):**
+API smoke tests:
 ```bash
-# 1. Configure environment
-cp .env.example .env
-# Edit .env: Set JWT_SECRET, MYSQL passwords, DEEPSEEK_API_KEY
-
-# 2. Start all services
-docker-compose up -d
-
-# 3. Check logs
-docker-compose logs -f
-
-# Access: http://localhost (frontend) and http://localhost:5000 (backend)
+curl -X POST http://localhost:5000/api/auth/login ^
+  -H "Content-Type: application/json" ^
+  -d "{\"username\":\"admin\",\"password\":\"admin123\"}"
 ```
 
-See `DOCKER_DEPLOYMENT.md` and `doc/DEPLOYMENT.md` for detailed deployment instructions.
+Use the returned JWT for protected endpoints.
 
-## Testing
+## Build and Verification
 
-### Test Data
-Database initialization includes default admin user and test data:
+Before handing off code changes, run:
 ```bash
-# Default admin credentials (for testing only - change in production!)
-Username: admin
-Password: admin123
-
-# Regular test user
-Username: testuser
-Password: test123
+npm run build
 ```
 
-**IMPORTANT:** Change default passwords immediately in production environments.
+Expected non-blocking warnings may include:
+- Vite chunk size over 500 KB.
+- Browserslist/caniuse-lite data is outdated.
 
-### Manual Testing Flow
-1. Start development servers: `npm run dev`
-2. Navigate to http://localhost:3000/login
-3. Log in with test credentials
-4. Perform divination using any method
-5. Verify hexagram display shows all attributes correctly
-6. Test AI analysis (requires valid DeepSeek API key)
-7. Check history page for saved records
-8. (Admin only) Access `/admin` to test admin features
+These warnings are currently not build failures.
 
-### API Testing
-Use tools like Postman or curl:
-```bash
-# Login
-curl -X POST http://localhost:5000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
+## Security Notes
 
-# Create divination (requires JWT token)
-curl -X POST http://localhost:5000/api/divination \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{"question":"Test","method":"time"}'
+Production checklist:
+- Change default admin and test passwords.
+- Use a strong `JWT_SECRET`.
+- Do not commit `.env` files.
+- Restrict production CORS origins.
+- Use HTTPS.
+- Do not expose MySQL publicly.
+- Rotate and protect DeepSeek API keys.
+- Keep user API keys encrypted or otherwise protected at rest.
+- Clean expired sessions and token blacklist records.
 
-# Get records
-curl http://localhost:5000/api/records \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+## Documentation References
 
-# Simulate coin toss
-curl http://localhost:5000/api/divination/simulate \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
-```
+Useful local docs:
+- `README.md`
+- `doc/PROJECT_DOCUMENTATION.md`
+- `doc/QUICKSTART.md`
+- `doc/DEPLOYMENT.md`
+- `doc/QUICK_REFERENCE.md`
+- `server/sql/README.md`
+- `server/docs/DB_AUTO_REPAIR_USAGE.md`
 
-## Important Notes
+Deployment docs:
+- `GHCR_DEPLOYMENT_GUIDE.md`
+- `GHCR_QUICKSTART.md`
+- `docker-compose.yml`
+- `docker-compose.ghcr.yml`
 
-### Chinese Character Encoding
-- Database uses `utf8mb4` character set
-- All API responses are UTF-8
-- Ensure your editor uses UTF-8 encoding when editing Chinese content
+## Current Implementation Notes
 
-### Type Safety
-The project uses TypeScript strictly. Key interfaces:
-- `Gua` - Basic hexagram structure
-- `GuaDecoration` - Complete hexagram with all attributes
-- `YaoState`, `ChangeAnalysis`, `YaoRelation`, `FuShen` - Advanced features
+Recent notable implementation areas:
+- Full JWT/RBAC auth system.
+- Admin dashboard and management pages.
+- Session, audit, login, invite-code, and security features.
+- Bazi calculation and AI analysis.
+- Liuyao traditional rule judgement in `server/src/utils/liuyaoAnalysis.ts`.
+- Rule-guided AI prompt for Liuyao interpretation.
 
-**Location:** All types defined in respective utility files and imported where needed.
-
-### Frontend Styling
-Uses Tailwind CSS with traditional Chinese color scheme:
-- Primary: Red tones (朱红)
-- Secondary: Green tones (墨绿)
-- Accent: Gold (金色)
-
-Custom colors configured in `client/tailwind.config.js`.
-
-## Security Best Practices
-
-### Production Deployment Checklist
-1. **Change default passwords** immediately:
-   - Default admin password (`admin123`)
-   - MySQL root password
-   - All test user passwords
-
-2. **Generate strong JWT secret**:
-   ```bash
-   # Generate a random 64-character secret
-   node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
-   ```
-   Set in `.env`: `JWT_SECRET=your-generated-secret`
-
-3. **Secure environment variables**:
-   - Never commit `.env` files to version control
-   - Use different secrets for dev/staging/production
-   - Restrict `.env` file permissions: `chmod 600 .env`
-
-4. **Database security**:
-   - Use strong MySQL passwords
-   - Don't expose MySQL port publicly (Docker: remove port mapping in production)
-   - Regular backups of `liuyao_db`
-   - Enable MySQL audit logging for sensitive operations
-
-5. **API key protection**:
-   - Store DeepSeek API keys encrypted in database
-   - Don't expose API keys in client-side code
-   - Monitor API usage and set rate limits
-
-6. **Session management**:
-   - Regularly clean expired sessions
-   - Implement session timeout
-   - Use HTTPS in production (prevents token interception)
-
-7. **Input validation**:
-   - Backend validates all inputs (already implemented)
-   - Frontend provides additional UX validation
-   - Sanitize user-generated content to prevent XSS
-
-8. **CORS configuration**:
-   - Restrict allowed origins in production
-   - Don't use `*` wildcard for CORS
-   - Configure in `server/src/index.ts`
-
-### Login Security Features
-- Failed login attempt tracking (max 5 attempts)
-- Account lockout after excessive failures (30 minutes)
-- Login history with IP and user agent tracking
-- Session invalidation on password change
-- Force logout capabilities for admins
-
-## Troubleshooting
-
-### Authentication Issues
-**Problem:** "Invalid token" or "Token expired" errors
-**Solutions:**
-1. Check JWT token is being sent in Authorization header: `Bearer YOUR_TOKEN`
-2. Verify JWT_SECRET matches between .env and what was used to generate tokens
-3. Token may have expired - try logging in again
-4. Clear localStorage and re-login if token is corrupted
-
-**Problem:** "Insufficient permissions"
-**Solutions:**
-1. Check user's role has required permissions in database
-2. Verify permission strings match exactly (e.g., `divination:create`)
-3. Admin operations require both authentication AND admin permissions
-
-### Port Already in Use
-Default ports: 3000 (frontend), 5000 (backend)
-
-Change in:
-- Frontend: `client/vite.config.ts` → `server.port`
-- Backend: `server/.env` → `PORT=5001`
-
-### MySQL Connection Issues
-Check:
-1. MySQL service is running (or Docker container: `docker-compose ps mysql`)
-2. Credentials in `.env` match your MySQL setup
-3. Database `liuyao_db` exists (created by init script)
-4. Character set is `utf8mb4`
-5. Container logs show `ready for connections`: `docker-compose logs mysql`
-6. Network connectivity between backend and MySQL (Docker: use host `mysql`, not `localhost`)
-
-### Database Initialization Issues
-**Problem:** Tables not created or missing data
-**Solutions:**
-1. Check if `00_init_complete.sql` ran successfully
-2. For Docker: Check `db-init` container logs: `docker-compose logs db-init`
-3. Manually run SQL: `docker-compose exec mysql mysql -u root -pPASSWORD liuyao_db < /sql/00_init_complete.sql`
-4. Verify `DB_RESET_ON_STARTUP=true` in `.env` for auto-reset on startup (development only)
-
-### DeepSeek API Failures
-Common causes:
-1. API key not configured or invalid
-2. Insufficient account balance
-3. Network connectivity issues
-4. Request rate limiting
-
-Check backend logs for detailed error messages.
-
-### Moving Lines Not Displaying
-Verify:
-1. `changes` array is correctly generated in divination algorithm
-2. Frontend component receives `changes` prop
-3. Styling for moving line markers is applied
-
-## Additional Documentation
-
-- `README.md` - Project overview and basic setup (Chinese)
-- `DEEPSEEK_CONFIG.md` - DeepSeek API configuration guide
-- `DOCKER_DEPLOYMENT.md` - Docker deployment guide (recommended for production)
-- `doc/DEPLOYMENT.md` - Comprehensive deployment documentation
-- `doc/DEPLOYMENT_CHECKLIST.md` - Pre-deployment checklist
-- `server/src/utils/najia_reference.md` - Traditional Najia reference
-
-## Project Status
-
-**Recent Additions:**
-- ✅ Complete Bazi (八字批命) system with four pillars, ten gods, dayun
-- ✅ Complete authentication and authorization system (JWT + RBAC)
-- ✅ Admin dashboard with user, role, and permission management
-- ✅ Session management and login security
-- ✅ Audit logging and activity tracking
-- ✅ Invitation code system
-- ✅ User data isolation (users can only see their own records)
-- ✅ Password change functionality
-- ✅ Personal API key management
-- ✅ Verification feedback system for divination records
-- ✅ Docker deployment support with auto-initialization
-
-**Core Features:**
-- Three divination methods (time, number, manual)
-- Complete Liuyao hexagram generation with traditional attributes
-- Complete Bazi (八字) chart calculation with four pillars, ten gods, dayun
-- AI-powered interpretation via DeepSeek API (Liuyao and Bazi)
-- Historical record management (Liuyao and Bazi)
-- Utility tools (calendar conversion, branch relations, hexagram lookup)
-
+Known technical debt:
+- Some historical source files and SQL comments contain mojibake text. There is a normalization layer for responses, but a full encoding cleanup should be planned carefully.
+- Liuyao record user isolation should be audited if multi-user privacy is a priority.
+- Frontend bundle size is above Vite's default warning threshold.

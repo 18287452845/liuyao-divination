@@ -269,6 +269,53 @@ function buildAnalysisPrompt(
 
   prompt += `## 📋 占问事项\n${question}\n\n`;
 
+  if (decoration.traditionalAnalysis) {
+    const judgement = decoration.traditionalAnalysis;
+    prompt += `## 🧭 系统传统规则初判（必须优先遵循）\n\n`;
+    prompt += `> 以下为后端依据《增删卜易》《卜筮正宗》常用断法生成的结构化判断。AI 只能在此基础上解释、补充和润色；不得推翻用神、旺衰、动爻影响和总趋势。若现实信息不足，应说明“不宜武断”。\n\n`;
+    prompt += `- **占事类别**：${judgement.categoryLabel}\n`;
+    prompt += `- **取用神**：${judgement.yongShen.primaryRelative}。${judgement.yongShen.reason}\n`;
+    prompt += `- **综合倾向**：${judgement.finalTendency}\n`;
+    prompt += `- **规则评分**：${judgement.totalScore}\n`;
+    prompt += `- **置信度**：${Math.round(judgement.confidence * 100)}%\n`;
+
+    if (judgement.yongShen.lines?.length > 0) {
+      prompt += `- **用神落爻**：${judgement.yongShen.lines
+        .map((line: any) => `${line.yaoName}${line.branch}${line.element}（${line.sixRelative}，${line.state}，评分${line.score}${line.isKongWang ? '，空亡' : ''}${line.isMoving ? '，发动' : ''}）`)
+        .join('；')}\n`;
+    } else if (judgement.yongShen.fuShen) {
+      const fu = judgement.yongShen.fuShen;
+      prompt += `- **用神伏藏**：${fu.yaoName}${fu.branch}${fu.element}，飞伏关系${fu.relation}，${fu.canComeOut ? '有出伏条件' : '短期难出'}\n`;
+    }
+
+    if (judgement.usefulGods?.length > 0) {
+      prompt += `- **原忌仇神**：${judgement.usefulGods
+        .slice(0, 8)
+        .map((item: any) => `${item.type}${item.yaoName}${item.branch}${item.element}${item.isMoving ? '动' : ''}${item.isKongWang ? '空' : ''}：${item.effect}`)
+        .join('；')}\n`;
+    }
+
+    if (judgement.movingLines?.length > 0) {
+      prompt += `- **动爻影响**：${judgement.movingLines
+        .map((item: any) => `${item.yaoName}${item.sixRelative}${item.branch}${item.changeType ? `，${item.changeType}` : ''}，${item.effectOnYongShen}`)
+        .join('；')}\n`;
+    }
+
+    prompt += `- **世应关系**：世在${judgement.shiYing.shi.yaoName}${judgement.shiYing.shi.branch}${judgement.shiYing.shi.element}，应在${judgement.shiYing.ying.yaoName}${judgement.shiYing.ying.branch}${judgement.shiYing.ying.element}，${judgement.shiYing.relation}，${judgement.shiYing.effect}\n`;
+
+    if (judgement.timingHints?.length > 0) {
+      prompt += `- **应期候选**：${judgement.timingHints
+        .map((item: any) => `${item.type}${item.branch ? `(${item.branch})` : ''}：${item.period}`)
+        .join('；')}\n`;
+    }
+
+    prompt += `\n### 规则推理步骤\n`;
+    judgement.reasoningSteps.forEach((step: string, index: number) => {
+      prompt += `${index + 1}. ${step}\n`;
+    });
+    prompt += `\n`;
+  }
+
   prompt += `## 🎴 本卦：${name}\n`;
   prompt += `**上卦**：${trigrams.upper}  **下卦**：${trigrams.lower}\n\n`;
 

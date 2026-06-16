@@ -1,5 +1,5 @@
 ﻿import axios from 'axios';
-import type { DivinationRecord, DivinationMethod, Gender, BaZi } from '../types';
+import type { DivinationRecord, DivinationMethod, DivinationCategory, Gender, BaZi } from '../types';
 import { clearStoredAuth, fetchWithAutoRefresh, getStoredAccessToken, refreshAuthTokens } from './tokenRefresh';
 import { normalizeLegacyData, normalizeLegacyText } from './textNormalize';
 
@@ -71,6 +71,7 @@ api.interceptors.response.use(
 export const divinationApi = {
   createDivination: async (data: {
     method: DivinationMethod;
+    category?: DivinationCategory;
     question: string;
     gender?: Gender;
     bazi?: BaZi;

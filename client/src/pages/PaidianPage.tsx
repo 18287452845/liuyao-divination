@@ -33,6 +33,16 @@ const responseBadgeStyles = {
   远应: 'bg-gray-500 text-white',
 };
 
+const tendencyStyles: Record<string, string> = {
+  吉: 'bg-green-100 text-green-700 border-green-200',
+  先凶后吉: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  平: 'bg-gray-100 text-gray-700 border-gray-200',
+  待时: 'bg-blue-100 text-blue-700 border-blue-200',
+  不成: 'bg-orange-100 text-orange-700 border-orange-200',
+  先吉后凶: 'bg-amber-100 text-amber-700 border-amber-200',
+  凶: 'bg-red-100 text-red-700 border-red-200',
+};
+
 const PaidianPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -148,6 +158,83 @@ const PaidianPage: React.FC = () => {
             <GuaDisplay gua={record.bianGua} decoration={record.decoration} title="变卦" showDecoration={true} />
           )}
         </div>
+
+        {record.decoration.traditionalAnalysis && (
+          <div className="card mb-8">
+            <div className="flex items-start justify-between gap-4 flex-wrap mb-5">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-700">传统规则初判</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  依据用神、月日旺衰、动爻变爻、原忌仇神与世应关系生成。
+                </p>
+              </div>
+              <div
+                className={`px-4 py-2 rounded-lg border font-bold ${
+                  tendencyStyles[record.decoration.traditionalAnalysis.finalTendency] || tendencyStyles.平
+                }`}
+              >
+                {record.decoration.traditionalAnalysis.finalTendency}
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-4 gap-4 mb-5">
+              <div className="p-3 rounded-lg bg-gray-50">
+                <p className="text-xs text-gray-500">占事类别</p>
+                <p className="font-semibold text-gray-800">{record.decoration.traditionalAnalysis.categoryLabel}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-gray-50">
+                <p className="text-xs text-gray-500">取用神</p>
+                <p className="font-semibold text-gray-800">{record.decoration.traditionalAnalysis.yongShen.primaryRelative}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-gray-50">
+                <p className="text-xs text-gray-500">规则评分</p>
+                <p className="font-semibold text-gray-800">{record.decoration.traditionalAnalysis.totalScore}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-gray-50">
+                <p className="text-xs text-gray-500">置信度</p>
+                <p className="font-semibold text-gray-800">
+                  {Math.round(record.decoration.traditionalAnalysis.confidence * 100)}%
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-5 p-4 rounded-lg bg-amber-50 border border-amber-200">
+              <p className="font-semibold text-gray-800 mb-2">用神依据</p>
+              <p className="text-gray-700 text-sm leading-relaxed">{record.decoration.traditionalAnalysis.yongShen.reason}</p>
+              {record.decoration.traditionalAnalysis.yongShen.lines.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {record.decoration.traditionalAnalysis.yongShen.lines.map((line) => (
+                    <span key={line.position} className="px-3 py-1 rounded-full bg-white border border-amber-200 text-sm text-gray-700">
+                      {line.yaoName} {line.branch}{line.element} {line.state} 评分{line.score}
+                      {line.isMoving ? ' 动' : ''}
+                      {line.isKongWang ? ' 空' : ''}
+                    </span>
+                  ))}
+                </div>
+              ) : record.decoration.traditionalAnalysis.yongShen.fuShen ? (
+                <p className="mt-2 text-sm text-gray-700">
+                  用神伏藏于{record.decoration.traditionalAnalysis.yongShen.fuShen.yaoName}
+                  {record.decoration.traditionalAnalysis.yongShen.fuShen.branch}
+                  {record.decoration.traditionalAnalysis.yongShen.fuShen.element}，
+                  {record.decoration.traditionalAnalysis.yongShen.fuShen.canComeOut ? '有出伏条件' : '短期难出'}。
+                </p>
+              ) : (
+                <p className="mt-2 text-sm text-gray-700">用神证据不足，不宜武断。</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <p className="font-semibold text-gray-800">推理步骤</p>
+              <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                {record.decoration.traditionalAnalysis.reasoningSteps.map((step, index) => (
+                  <li key={index} className="leading-relaxed">
+                    {step}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        )}
 
         {record.decoration.yingQi && record.decoration.yingQi.length > 0 && (
           <div className="card mb-8">

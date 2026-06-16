@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { divinationApi } from '../utils/api';
 import { useToast } from '../hooks/useToast';
 import ToastContainer from '../components/ToastContainer';
-import type { DivinationMethod, Gender, BaZi } from '../types';
+import type { DivinationMethod, DivinationCategory, Gender, BaZi } from '../types';
 
 const methodDescriptions: Record<DivinationMethod, { title: string; description: string }> = {
   time: {
@@ -33,9 +33,23 @@ const yaoNameMap: Record<number, string> = {
 
 const yaoPositionNames = ['初爻', '二爻', '三爻', '四爻', '五爻', '上爻'];
 
+const categoryOptions: Array<{ value: DivinationCategory; label: string; description: string }> = [
+  { value: 'general', label: '泛问吉凶', description: '以世爻为主，兼看动爻与卦体。' },
+  { value: 'wealth', label: '求财财运', description: '以妻财为用神，兼看子孙财源与兄弟劫财。' },
+  { value: 'career', label: '事业功名', description: '以官鬼为用神，兼看父母文书。' },
+  { value: 'relationship', label: '感情婚姻', description: '男占多取妻财，女占多取官鬼。' },
+  { value: 'health', label: '疾病健康', description: '以官鬼为病症，子孙为医药解神。' },
+  { value: 'exam', label: '考试文书', description: '以父母为用神，兼看官鬼名位。' },
+  { value: 'lawsuit', label: '诉讼是非', description: '以官鬼为压力，世应分主客。' },
+  { value: 'lost', label: '失物寻物', description: '以妻财为物，重点看伏神与应期。' },
+  { value: 'travel', label: '出行行人', description: '以世应、动爻和归期为重点。' },
+  { value: 'cooperation', label: '合作交易', description: '以世应关系为主，财爻看利益。' },
+];
+
 const DivinationPage: React.FC = () => {
   const navigate = useNavigate();
   const [method, setMethod] = useState<DivinationMethod>('time');
+  const [category, setCategory] = useState<DivinationCategory>('general');
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const toast = useToast();
@@ -99,6 +113,7 @@ const DivinationPage: React.FC = () => {
 
       const result = await divinationApi.createDivination({
         method,
+        category,
         question,
         gender,
         bazi: showBazi && (bazi.year || bazi.month || bazi.day || bazi.hour) ? bazi : undefined,
@@ -160,6 +175,27 @@ const DivinationPage: React.FC = () => {
             className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-primary focus:outline-none"
             rows={3}
           />
+        </div>
+
+        <div className="card mb-6">
+          <label className="block text-lg font-semibold mb-3 text-gray-700">占事类别</label>
+          <div className="grid md:grid-cols-2 gap-3">
+            {categoryOptions.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => setCategory(item.value)}
+                className={`text-left p-3 rounded-lg border-2 transition-all ${
+                  category === item.value
+                    ? 'border-primary bg-red-50 text-gray-900'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-primary/50'
+                }`}
+              >
+                <span className="block font-semibold">{item.label}</span>
+                <span className="block text-xs text-gray-500 mt-1">{item.description}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="card mb-6">

@@ -11,13 +11,26 @@ import {
   normalizeGuaByMethod,
   simulateYaoGua
 } from '../utils/liuyao';
+import { analyzeLiuyaoJudgement } from '../utils/liuyaoAnalysis';
 
 function buildNormalizedRecord(row: any) {
   const timestamp = Number(row.timestamp);
   const date = new Date(timestamp);
   const benGua = normalizeGuaByMethod(JSON.parse(row.ben_gua), row.method);
   const bianGua = benGua ? generateBianGua(benGua) : null;
-  const decoration = benGua ? decorateGua(benGua, date) : JSON.parse(row.decoration);
+  const storedDecoration = row.decoration ? JSON.parse(row.decoration) : null;
+  const category = storedDecoration?.traditionalAnalysis?.category;
+  const decoration = benGua ? decorateGua(benGua, date) : storedDecoration;
+
+  if (benGua && decoration) {
+    (decoration as any).traditionalAnalysis = analyzeLiuyaoJudgement({
+      gua: benGua,
+      decoration,
+      question: row.question,
+      gender: row.gender || undefined,
+      category
+    });
+  }
 
   return {
     id: row.id,
@@ -37,7 +50,7 @@ function buildNormalizedRecord(row: any) {
 // 创建卦象
 export const createDivination = async (req: Request, res: Response) => {
   try {
-    const { method, question, gender, bazi, data } = req.body;
+    const { method, question, gender, bazi, data, category } = req.body;
     const timestamp = Date.now();
     const date = new Date(timestamp);
 
@@ -64,6 +77,13 @@ export const createDivination = async (req: Request, res: Response) => {
 
     // 装卦
     const decoration = decorateGua(benGua, date);
+    (decoration as any).traditionalAnalysis = analyzeLiuyaoJudgement({
+      gua: benGua,
+      decoration,
+      question,
+      gender,
+      category
+    });
 
     // 保存到数据库
     const id = uuidv4();
