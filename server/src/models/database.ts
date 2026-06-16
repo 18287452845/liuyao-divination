@@ -147,6 +147,17 @@ async function checkBasicData() {
 
 // 数据库操作类
 export class DivinationRecordModel {
+  private static appendUserScope(conditions: string[], params: any[], userId?: string) {
+    if (userId) {
+      conditions.push('user_id = ?');
+      params.push(userId);
+    }
+  }
+
+  private static buildWhereClause(conditions: string[]) {
+    return conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
+  }
+
   // 创建记录
   static async create(record: {
     id: string;
@@ -159,11 +170,12 @@ export class DivinationRecordModel {
     bian_gua: string | null;
     decoration: string;
     ai_analysis?: string;
+    user_id?: string;
   }) {
     const sql = `
       INSERT INTO divination_records
-      (id, timestamp, question, gender, bazi, method, ben_gua, bian_gua, decoration, ai_analysis)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, timestamp, question, gender, bazi, method, ben_gua, bian_gua, decoration, ai_analysis, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     await query(sql, [
       record.id,
@@ -175,20 +187,25 @@ export class DivinationRecordModel {
       record.ben_gua,
       record.bian_gua,
       record.decoration,
-      record.ai_analysis || null
+      record.ai_analysis || null,
+      record.user_id || null
     ]);
     return record.id;
   }
 
   // 获取所有记录
-  static async findAll(search?: string, limit: number = 100, offset: number = 0) {
+  static async findAll(search?: string, limit: number = 100, offset: number = 0, userId?: string) {
     let sql = 'SELECT * FROM divination_records';
     const params: any[] = [];
+    const conditions: string[] = [];
 
     if (search) {
-      sql += ' WHERE question LIKE ?';
+      conditions.push('question LIKE ?');
       params.push(`%${search}%`);
     }
+
+    this.appendUserScope(conditions, params, userId);
+    sql += this.buildWhereClause(conditions);
 
     sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
@@ -197,35 +214,48 @@ export class DivinationRecordModel {
   }
 
   // 获取记录总数
-  static async count(search?: string) {
+  static async count(search?: string, userId?: string) {
     let sql = 'SELECT COUNT(*) as count FROM divination_records';
     const params: any[] = [];
+    const conditions: string[] = [];
 
     if (search) {
-      sql += ' WHERE question LIKE ?';
+      conditions.push('question LIKE ?');
       params.push(`%${search}%`);
     }
+
+    this.appendUserScope(conditions, params, userId);
+    sql += this.buildWhereClause(conditions);
 
     const result: any = await queryOne(sql, params);
     return result ? result.count : 0;
   }
 
   // 根据ID获取记录
-  static async findById(id: string) {
-    const sql = 'SELECT * FROM divination_records WHERE id = ?';
-    return await queryOne(sql, [id]);
+  static async findById(id: string, userId?: string) {
+    const conditions = ['id = ?'];
+    const params: any[] = [id];
+    this.appendUserScope(conditions, params, userId);
+    const sql = `SELECT * FROM divination_records${this.buildWhereClause(conditions)}`;
+    return await queryOne(sql, params);
   }
 
   // 更新AI解析
-  static async updateAnalysis(id: string, aiAnalysis: string) {
-    const sql = 'UPDATE divination_records SET ai_analysis = ? WHERE id = ?';
-    return await update(sql, [aiAnalysis, id]);
+  static async updateAnalysis(id: string, aiAnalysis: string, userId?: string) {
+    const conditions = ['id = ?'];
+    const params: any[] = [aiAnalysis, id];
+    this.appendUserScope(conditions, params, userId);
+    const sql = `UPDATE divination_records SET ai_analysis = ?${this.buildWhereClause(conditions)}`;
+    return await update(sql, params);
   }
 
   // 删除记录
-  static async deleteById(id: string) {
-    const sql = 'DELETE FROM divination_records WHERE id = ?';
-    return await remove(sql, [id]);
+  static async deleteById(id: string, userId?: string) {
+    const conditions = ['id = ?'];
+    const params: any[] = [id];
+    this.appendUserScope(conditions, params, userId);
+    const sql = `DELETE FROM divination_records${this.buildWhereClause(conditions)}`;
+    return await remove(sql, params);
   }
 
   // ========== 验证反馈相关方法 ==========
@@ -235,7 +265,17 @@ export class DivinationRecordModel {
     actual_result: string;
     accuracy_rating: number;
     user_notes?: string;
-  }) {
+  }, userId?: string) {
+    const conditions = ['id = ?'];
+    const params: any[] = [
+      verificationData.actual_result,
+      Date.now(),
+      verificationData.accuracy_rating,
+      verificationData.user_notes || null,
+      id
+    ];
+    this.appendUserScope(conditions, params, userId);
+
     const sql = `
       UPDATE divination_records
       SET is_verified = TRUE,
@@ -243,19 +283,17 @@ export class DivinationRecordModel {
           verify_time = ?,
           accuracy_rating = ?,
           user_notes = ?
-      WHERE id = ?
+      ${this.buildWhereClause(conditions)}
     `;
-    return await update(sql, [
-      verificationData.actual_result,
-      Date.now(),
-      verificationData.accuracy_rating,
-      verificationData.user_notes || null,
-      id
-    ]);
+    return await update(sql, params);
   }
 
   // 取消验证
-  static async cancelVerification(id: string) {
+  static async cancelVerification(id: string, userId?: string) {
+    const conditions = ['id = ?'];
+    const params: any[] = [id];
+    this.appendUserScope(conditions, params, userId);
+
     const sql = `
       UPDATE divination_records
       SET is_verified = FALSE,
@@ -263,37 +301,51 @@ export class DivinationRecordModel {
           verify_time = NULL,
           accuracy_rating = NULL,
           user_notes = NULL
-      WHERE id = ?
+      ${this.buildWhereClause(conditions)}
     `;
-    return await update(sql, [id]);
+    return await update(sql, params);
   }
 
   // 获取已验证的记录
-  static async findVerified(limit: number = 100, offset: number = 0) {
+  static async findVerified(limit: number = 100, offset: number = 0, userId?: string) {
+    const conditions = ['is_verified = TRUE'];
+    const params: any[] = [];
+    this.appendUserScope(conditions, params, userId);
+
     const sql = `
       SELECT * FROM divination_records
-      WHERE is_verified = TRUE
+      ${this.buildWhereClause(conditions)}
       ORDER BY verify_time DESC
       LIMIT ? OFFSET ?
     `;
-    return await query(sql, [limit, offset]);
+    return await query(sql, [...params, limit, offset]);
   }
 
   // 获取待验证的记录（已起卦但未验证）
-  static async findUnverified(limit: number = 100, offset: number = 0) {
+  static async findUnverified(limit: number = 100, offset: number = 0, userId?: string) {
+    const conditions = ['is_verified = FALSE'];
+    const params: any[] = [];
+    this.appendUserScope(conditions, params, userId);
+
     const sql = `
       SELECT * FROM divination_records
-      WHERE is_verified = FALSE
+      ${this.buildWhereClause(conditions)}
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?
     `;
-    return await query(sql, [limit, offset]);
+    return await query(sql, [...params, limit, offset]);
   }
 
   // 获取统计信息
-  static async getStatistics() {
+  static async getStatistics(userId?: string) {
+    const userCondition = userId ? ' WHERE user_id = ?' : '';
+    const andUserCondition = userId ? ' AND user_id = ?' : '';
+    const userParams = userId ? [userId] : [];
     // 总记录数
-    const totalResult: any = await queryOne('SELECT COUNT(*) as count FROM divination_records');
+    const totalResult: any = await queryOne(
+      `SELECT COUNT(*) as count FROM divination_records${userCondition}`,
+      userParams
+    );
     const total = totalResult ? totalResult.count : 0;
 
     const startOfToday = new Date();
@@ -302,20 +354,22 @@ export class DivinationRecordModel {
     startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
 
     const todayResult: any = await queryOne(
-      'SELECT COUNT(*) as count FROM divination_records WHERE timestamp >= ? AND timestamp < ?',
-      [startOfToday.getTime(), startOfTomorrow.getTime()]
+      `SELECT COUNT(*) as count FROM divination_records WHERE timestamp >= ? AND timestamp < ?${andUserCondition}`,
+      [startOfToday.getTime(), startOfTomorrow.getTime(), ...userParams]
     );
     const todayTotal = todayResult ? todayResult.count : 0;
 
     // 已验证数
     const verifiedResult: any = await queryOne(
-      'SELECT COUNT(*) as count FROM divination_records WHERE is_verified = TRUE'
+      `SELECT COUNT(*) as count FROM divination_records WHERE is_verified = TRUE${andUserCondition}`,
+      userParams
     );
     const verified = verifiedResult ? verifiedResult.count : 0;
 
     // 平均准确率
     const avgRatingResult: any = await queryOne(
-      'SELECT AVG(accuracy_rating) as avg FROM divination_records WHERE is_verified = TRUE'
+      `SELECT AVG(accuracy_rating) as avg FROM divination_records WHERE is_verified = TRUE${andUserCondition}`,
+      userParams
     );
     const avgRating = avgRatingResult && avgRatingResult.avg ? parseFloat(avgRatingResult.avg) : 0;
 
@@ -323,10 +377,10 @@ export class DivinationRecordModel {
     const ratingStatsResult: any = await query(`
       SELECT accuracy_rating, COUNT(*) as count
       FROM divination_records
-      WHERE is_verified = TRUE AND accuracy_rating IS NOT NULL
+      WHERE is_verified = TRUE AND accuracy_rating IS NOT NULL${andUserCondition}
       GROUP BY accuracy_rating
       ORDER BY accuracy_rating DESC
-    `);
+    `, userParams);
 
     const ratingStats: { [key: number]: number } = {};
     if (ratingStatsResult) {
@@ -339,9 +393,10 @@ export class DivinationRecordModel {
     const methodStatsResult: any = await query(`
       SELECT method, COUNT(*) as count
       FROM divination_records
+      ${userCondition}
       GROUP BY method
       ORDER BY count DESC
-    `);
+    `, userParams);
 
     const methodStats: { [key: string]: number } = {};
     if (methodStatsResult) {
@@ -357,10 +412,10 @@ export class DivinationRecordModel {
         DATE(FROM_UNIXTIME(timestamp / 1000)) as date,
         COUNT(*) as count
       FROM divination_records
-      WHERE timestamp >= ?
+      WHERE timestamp >= ?${andUserCondition}
       GROUP BY date
       ORDER BY date ASC
-    `, [thirtyDaysAgo]);
+    `, [thirtyDaysAgo, ...userParams]);
 
     const trend: Array<{ date: string; count: number }> = [];
     if (trendResult) {

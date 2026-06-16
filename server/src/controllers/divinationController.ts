@@ -47,9 +47,23 @@ function buildNormalizedRecord(row: any) {
   };
 }
 
+function getCurrentUserId(req: Request, res: Response) {
+  const userId = req.user?.userId;
+
+  if (!userId) {
+    res.status(401).json({ error: '未登录' });
+    return null;
+  }
+
+  return userId;
+}
+
 // 创建卦象
 export const createDivination = async (req: Request, res: Response) => {
   try {
+    const userId = getCurrentUserId(req, res);
+    if (!userId) return;
+
     const { method, question, gender, bazi, data, category } = req.body;
     const timestamp = Date.now();
     const date = new Date(timestamp);
@@ -96,7 +110,8 @@ export const createDivination = async (req: Request, res: Response) => {
       method,
       ben_gua: JSON.stringify(benGua),
       bian_gua: bianGua ? JSON.stringify(bianGua) : null,
-      decoration: JSON.stringify(decoration)
+      decoration: JSON.stringify(decoration),
+      user_id: userId
     };
 
     await DivinationRecordModel.create(record);
@@ -132,12 +147,16 @@ export const simulateShake = async (req: Request, res: Response) => {
 // 获取历史记录列表
 export const getRecords = async (req: Request, res: Response) => {
   try {
+    const userId = getCurrentUserId(req, res);
+    if (!userId) return;
+
     const { search, limit = 20, offset = 0 } = req.query;
 
     const records: any = await DivinationRecordModel.findAll(
       search as string,
       Number(limit),
-      Number(offset)
+      Number(offset),
+      userId
     );
 
     const formattedRecords = records.map((row: any) => buildNormalizedRecord(row));
@@ -152,9 +171,12 @@ export const getRecords = async (req: Request, res: Response) => {
 // 获取单条记录
 export const getRecordById = async (req: Request, res: Response) => {
   try {
+    const userId = getCurrentUserId(req, res);
+    if (!userId) return;
+
     const { id } = req.params;
 
-    const row: any = await DivinationRecordModel.findById(id);
+    const row: any = await DivinationRecordModel.findById(id, userId);
 
     if (!row) {
       return res.status(404).json({ error: '记录不存在' });
@@ -198,10 +220,17 @@ export const getRecordById = async (req: Request, res: Response) => {
 // 更新AI分析结果
 export const updateAiAnalysis = async (req: Request, res: Response) => {
   try {
+    const userId = getCurrentUserId(req, res);
+    if (!userId) return;
+
     const { id } = req.params;
     const { aiAnalysis } = req.body;
 
-    await DivinationRecordModel.updateAnalysis(id, aiAnalysis);
+    const affectedRows = await DivinationRecordModel.updateAnalysis(id, aiAnalysis, userId);
+
+    if (!affectedRows) {
+      return res.status(404).json({ error: '记录不存在' });
+    }
 
     res.json({ success: true });
   } catch (error) {
@@ -213,9 +242,16 @@ export const updateAiAnalysis = async (req: Request, res: Response) => {
 // 删除记录
 export const deleteRecord = async (req: Request, res: Response) => {
   try {
+    const userId = getCurrentUserId(req, res);
+    if (!userId) return;
+
     const { id } = req.params;
 
-    await DivinationRecordModel.deleteById(id);
+    const affectedRows = await DivinationRecordModel.deleteById(id, userId);
+
+    if (!affectedRows) {
+      return res.status(404).json({ error: '记录不存在' });
+    }
 
     res.json({ success: true });
   } catch (error) {
@@ -229,6 +265,9 @@ export const deleteRecord = async (req: Request, res: Response) => {
 // 更新验证信息
 export const updateVerification = async (req: Request, res: Response) => {
   try {
+    const userId = getCurrentUserId(req, res);
+    if (!userId) return;
+
     const { id } = req.params;
     const { actual_result, accuracy_rating, user_notes } = req.body;
 
@@ -241,11 +280,15 @@ export const updateVerification = async (req: Request, res: Response) => {
       return res.status(400).json({ error: '准确度评分必须在1-5之间' });
     }
 
-    await DivinationRecordModel.updateVerification(id, {
+    const affectedRows = await DivinationRecordModel.updateVerification(id, {
       actual_result,
       accuracy_rating,
       user_notes
-    });
+    }, userId);
+
+    if (!affectedRows) {
+      return res.status(404).json({ error: '记录不存在' });
+    }
 
     res.json({ success: true, message: '验证信息已保存' });
   } catch (error) {
@@ -257,9 +300,16 @@ export const updateVerification = async (req: Request, res: Response) => {
 // 取消验证
 export const cancelVerification = async (req: Request, res: Response) => {
   try {
+    const userId = getCurrentUserId(req, res);
+    if (!userId) return;
+
     const { id } = req.params;
 
-    await DivinationRecordModel.cancelVerification(id);
+    const affectedRows = await DivinationRecordModel.cancelVerification(id, userId);
+
+    if (!affectedRows) {
+      return res.status(404).json({ error: '记录不存在' });
+    }
 
     res.json({ success: true, message: '验证已取消' });
   } catch (error) {
@@ -271,10 +321,13 @@ export const cancelVerification = async (req: Request, res: Response) => {
 // 获取已验证的记录
 export const getVerifiedRecords = async (req: Request, res: Response) => {
   try {
+    const userId = getCurrentUserId(req, res);
+    if (!userId) return;
+
     const limit = parseInt(req.query.limit as string) || 100;
     const offset = parseInt(req.query.offset as string) || 0;
 
-    const records = await DivinationRecordModel.findVerified(limit, offset);
+    const records = await DivinationRecordModel.findVerified(limit, offset, userId);
 
     // 解析JSON字段
     const parsedRecords = (records as any[]).map((row: any) => {
@@ -299,10 +352,13 @@ export const getVerifiedRecords = async (req: Request, res: Response) => {
 // 获取待验证的记录
 export const getUnverifiedRecords = async (req: Request, res: Response) => {
   try {
+    const userId = getCurrentUserId(req, res);
+    if (!userId) return;
+
     const limit = parseInt(req.query.limit as string) || 100;
     const offset = parseInt(req.query.offset as string) || 0;
 
-    const records = await DivinationRecordModel.findUnverified(limit, offset);
+    const records = await DivinationRecordModel.findUnverified(limit, offset, userId);
 
     // 解析JSON字段
     const parsedRecords = (records as any[]).map((row: any) => {
@@ -327,7 +383,10 @@ export const getUnverifiedRecords = async (req: Request, res: Response) => {
 // 获取统计信息
 export const getStatistics = async (req: Request, res: Response) => {
   try {
-    const stats = await DivinationRecordModel.getStatistics();
+    const userId = getCurrentUserId(req, res);
+    if (!userId) return;
+
+    const stats = await DivinationRecordModel.getStatistics(userId);
 
     res.json(stats);
   } catch (error) {
