@@ -184,7 +184,7 @@ async function runTests() {
   log('\n✨ 所有测试案例执行完毕！', colors.green + colors.bright);
   log('\n如果看到"✅ 测试通过"，说明核心算法工作正常。', colors.cyan);
   log('您现在可以：', colors.yellow);
-  log('1. 执行数据库迁移（mysql -u root -p liuyao_db < server/sql/02_bazi_tables.sql）');
+  log('1. 执行 Supabase 迁移：server/supabase/migrations/0001_init_schema.sql');
   log('2. 启动后端服务器测试API');
   log('3. 开始前端开发');
 }

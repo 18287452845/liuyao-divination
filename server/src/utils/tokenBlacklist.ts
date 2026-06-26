@@ -25,9 +25,9 @@ export async function addToBlacklist(entry: TokenBlacklistEntry): Promise<void> 
       `INSERT INTO token_blacklist (
         id, token_jti, user_id, token_type, expires_at, reason
       ) VALUES (?, ?, ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE 
-        expires_at = VALUES(expires_at),
-        reason = VALUES(reason)`,
+      ON CONFLICT (token_jti) DO UPDATE SET
+        expires_at = EXCLUDED.expires_at,
+        reason = EXCLUDED.reason`,
       [
         blacklistId,
         entry.tokenJti,

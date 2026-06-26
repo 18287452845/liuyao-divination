@@ -13,7 +13,6 @@ import { addToBlacklist, isTokenBlacklisted } from '../utils/tokenBlacklist';
 import { recordLoginLog } from './logController';
 import { validatePassword } from '../utils/passwordPolicy';
 import { validateInviteCode } from '../utils/inviteCodes';
-import { diagnosisAndRepair, DBError } from '../utils/dbAutoRepair';
 
 const MAX_LOGIN_FAIL_COUNT = 5;
 const LOGIN_LOCK_MINUTES = 30;
@@ -326,32 +325,6 @@ export async function login(req: Request, res: Response): Promise<void> {
     });
   } catch (error) {
     console.error('登录错误:', error);
-
-    if ((error as DBError)?.code === 'ER_BAD_FIELD_ERROR') {
-      const repairResult = await diagnosisAndRepair(
-        error as DBError,
-        'SELECT id, username, password, status, login_fail_count, locked_until FROM users WHERE username = ?',
-        [req.body?.username]
-      );
-
-      console.log('\n=== 数据库自动修复结果 ===');
-      console.log('状态:', repairResult.success ? '成功' : '失败');
-      console.log('信息:', repairResult.message);
-      if (repairResult.sqlExecuted) {
-        console.log('执行 SQL:', repairResult.sqlExecuted);
-      }
-      console.log('========================\n');
-
-      if (repairResult.success) {
-        res.status(503).json({
-          success: false,
-          message: '数据库已自动升级，请重新登录',
-          retryable: true,
-        });
-        return;
-      }
-    }
-
     res.status(500).json({
       success: false,
       message: '登录失败，请稍后重试',

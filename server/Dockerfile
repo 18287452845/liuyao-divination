@@ -56,6 +56,7 @@ COPY --from=builder /app/dist ./dist
 
 # 复制必要的静态资源（如果存在）
 RUN if [ -d /app/sql ]; then cp -r /app/sql ./sql; fi
+RUN if [ -d /app/supabase ]; then cp -r /app/supabase ./supabase; fi
 
 # 更改文件所有权
 RUN chown -R nodejs:nodejs /app

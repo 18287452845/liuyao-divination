@@ -1,151 +1,291 @@
-import mysql from 'mysql2/promise';
+import { Pool, PoolClient, QueryResult } from 'pg';
 import dotenv from 'dotenv';
+import path from 'path';
 
-// 加载环境变量
 dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), '../.env'), override: false });
 
-// MySQL连接配置
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '3306'),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '123456',
-  database: process.env.DB_NAME || 'liuyao_db',
-  charset: 'utf8mb4',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-  connectTimeout: 60000,  // 60秒连接超时
-  acquireTimeout: 60000,   // 60秒获取连接超时
-  timeout: 60000,          // 60秒查询超时
-  enableKeepAlive: true,
-  keepAliveInitialDelay: 0
+type QueryParams = any[];
+
+interface DbResult {
+  affectedRows: number;
+  rowCount: number;
+  insertId?: number | string | null;
+  rows?: any[];
+}
+
+function getConnectionString(): string {
+  const connectionString =
+    process.env.SUPABASE_DB_URL ||
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.SUPABASE_POSTGRES_URL;
+
+  if (!connectionString) {
+    throw new Error(
+      'Missing Supabase Postgres connection string. Set SUPABASE_DB_URL or DATABASE_URL.'
+    );
+  }
+
+  return connectionString;
+}
+
+function shouldUseSsl(connectionString: string): boolean {
+  if (process.env.SUPABASE_DB_SSL) {
+    return process.env.SUPABASE_DB_SSL !== 'false';
+  }
+
+  return connectionString.includes('supabase.co') || connectionString.includes('pooler.supabase.com');
+}
+
+const connectionString = getConnectionString();
+
+const pgPool = new Pool({
+  connectionString,
+  max: Number(process.env.SUPABASE_DB_POOL_SIZE || 10),
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 60_000,
+  ssl: shouldUseSsl(connectionString) ? { rejectUnauthorized: false } : undefined,
+});
+
+function convertPlaceholders(sql: string): string {
+  let index = 0;
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let inDollarQuote: string | null = null;
+  let result = '';
+
+  for (let i = 0; i < sql.length; i += 1) {
+    const char = sql[i];
+    const next = sql[i + 1];
+
+    if (!inSingleQuote && !inDoubleQuote && char === '$') {
+      const rest = sql.slice(i);
+      const match = rest.match(/^\$[A-Za-z0-9_]*\$/);
+      if (match) {
+        const tag = match[0];
+        if (inDollarQuote === tag) {
+          inDollarQuote = null;
+        } else if (!inDollarQuote) {
+          inDollarQuote = tag;
+        }
+        result += tag;
+        i += tag.length - 1;
+        continue;
+      }
+    }
+
+    if (!inDollarQuote && !inDoubleQuote && char === "'" && next === "'") {
+      result += "''";
+      i += 1;
+      continue;
+    }
+
+    if (!inDollarQuote && !inDoubleQuote && char === "'") {
+      inSingleQuote = !inSingleQuote;
+      result += char;
+      continue;
+    }
+
+    if (!inDollarQuote && !inSingleQuote && char === '"') {
+      inDoubleQuote = !inDoubleQuote;
+      result += char;
+      continue;
+    }
+
+    if (!inDollarQuote && !inSingleQuote && !inDoubleQuote && char === '?') {
+      index += 1;
+      result += `$${index}`;
+      continue;
+    }
+
+    result += char;
+  }
+
+  return result;
+}
+
+function legacySqlCompat(sql: string): string {
+  let converted = sql;
+
+  converted = converted.replace(
+    /DATE_SUB\(NOW\(\),\s*INTERVAL\s*\?\s*DAY\)/gi,
+    "(NOW() - (? * INTERVAL '1 day'))"
+  );
+
+  converted = converted.replace(
+    /DATE_SUB\(NOW\(\),\s*INTERVAL\s*(\d+)\s*DAY\)/gi,
+    "(NOW() - ($1 * INTERVAL '1 day'))"
+  );
+
+  converted = converted.replace(/CURDATE\(\)/gi, 'CURRENT_DATE');
+
+  converted = converted.replace(
+    /GROUP_CONCAT\(DISTINCT\s+([^)]+?)\)\s+as\s+([A-Za-z_][A-Za-z0-9_]*)/gi,
+    "string_agg(DISTINCT ($1)::text, ',') as $2"
+  );
+
+  converted = converted.replace(
+    /DATE\(FROM_UNIXTIME\(([^)]+)\)\)/gi,
+    "to_char(to_timestamp($1), 'YYYY-MM-DD')"
+  );
+
+  return convertPlaceholders(converted);
+}
+
+function isReadQuery(sql: string): boolean {
+  const normalized = sql.trim().toLowerCase();
+  return (
+    normalized.startsWith('select') ||
+    normalized.startsWith('with') ||
+    normalized.startsWith('show')
+  );
+}
+
+function toMysqlLikeResult(result: QueryResult): DbResult {
+  return {
+    affectedRows: result.rowCount || 0,
+    rowCount: result.rowCount || 0,
+    insertId: result.rows?.[0]?.id ?? null,
+    rows: result.rows,
+  };
+}
+
+async function executePg(client: Pool | PoolClient, sql: string, params: QueryParams = []) {
+  const convertedSql = legacySqlCompat(sql);
+  const result = await client.query(convertedSql, params);
+  return isReadQuery(sql) ? result.rows : toMysqlLikeResult(result);
+}
+
+class TransactionConnection {
+  constructor(private readonly client: PoolClient) {}
+
+  async beginTransaction() {
+    await this.client.query('BEGIN');
+  }
+
+  async commit() {
+    await this.client.query('COMMIT');
+  }
+
+  async rollback() {
+    await this.client.query('ROLLBACK');
+  }
+
+  async execute(sql: string, params?: QueryParams) {
+    const result = await executePg(this.client, sql, params);
+    return [result, undefined];
+  }
+
+  release() {
+    this.client.release();
+  }
+}
+
+export const pool = {
+  async execute(sql: string, params?: QueryParams) {
+    const result = await executePg(pgPool, sql, params);
+    return [result, undefined];
+  },
+
+  async getConnection() {
+    const client = await pgPool.connect();
+    return new TransactionConnection(client);
+  },
+
+  async end() {
+    await pgPool.end();
+  },
 };
 
-// 创建连接池
-export const pool = mysql.createPool(dbConfig);
-
-// 测试数据库连接
 export async function testConnection() {
   try {
-    const connection = await pool.getConnection();
-    console.log('✓ MySQL数据库连接成功');
-    console.log(`  数据库: ${dbConfig.database}`);
-    console.log(`  主机: ${dbConfig.host}:${dbConfig.port}`);
-    connection.release();
+    const result = await pgPool.query('select current_database() as database, now() as now');
+    console.log('Supabase Postgres connected');
+    console.log(`  database: ${result.rows[0]?.database}`);
     return true;
   } catch (err) {
-    console.error('✗ MySQL数据库连接失败:', err);
-    console.error('  请检查:');
-    console.error('  1. MySQL服务是否启动');
-    console.error('  2. 数据库配置是否正确 (.env文件)');
-    console.error('  3. 数据库liuyao_db是否已创建');
+    console.error('Supabase Postgres connection failed:', err);
+    console.error('  Check SUPABASE_DB_URL / DATABASE_URL and network access.');
     return false;
   }
 }
 
-// 数据库查询辅助函数
-export async function query(sql: string, params?: any[]) {
+export async function query(sql: string, params?: QueryParams) {
   try {
-    const [results] = await pool.execute(sql, params);
-    return results;
+    return await executePg(pgPool, sql, params);
   } catch (err) {
-    console.error('数据库查询错误:', err);
+    console.error('Database query failed:', err);
     throw err;
   }
 }
 
-// 获取单条记录
-export async function queryOne(sql: string, params?: any[]) {
+export async function queryOne(sql: string, params?: QueryParams) {
   const results: any = await query(sql, params);
-  return results[0] || null;
+  return Array.isArray(results) ? results[0] || null : null;
 }
 
-// 插入记录并返回ID
-export async function insert(sql: string, params?: any[]) {
+export async function insert(sql: string, params?: QueryParams) {
   const result: any = await query(sql, params);
-  return result.insertId;
+  return result.insertId || result.rows?.[0]?.id || null;
 }
 
-// 更新记录
-export async function update(sql: string, params?: any[]) {
+export async function update(sql: string, params?: QueryParams) {
   const result: any = await query(sql, params);
-  return result.affectedRows;
+  return result.affectedRows || result.rowCount || 0;
 }
 
-// 删除记录
-export async function remove(sql: string, params?: any[]) {
+export async function remove(sql: string, params?: QueryParams) {
   const result: any = await query(sql, params);
-  return result.affectedRows;
+  return result.affectedRows || result.rowCount || 0;
 }
 
-// 数据库初始化检查
 export async function initDatabase() {
-  try {
-    // 检查连接
-    const connected = await testConnection();
-    if (!connected) {
-      throw new Error('无法连接到数据库');
-    }
-
-    // 检查表是否存在
-    const tables = ['divination_records', 'trigrams', 'gua_data'];
-    for (const table of tables) {
-      const result: any = await query(
-        `SELECT COUNT(*) as count FROM information_schema.tables
-         WHERE table_schema = ? AND table_name = ?`,
-        [dbConfig.database, table]
-      );
-
-      if (result[0].count === 0) {
-        console.warn(`⚠ 警告: 表 ${table} 不存在`);
-        console.warn('  请运行数据库初始化脚本:');
-        console.warn('  mysql -u root -p123456 < sql/init_database.sql');
-      }
-    }
-
-    // 检查基础数据是否存在
-    await checkBasicData();
-
-    console.log('✓ 数据库初始化检查完成');
-  } catch (err) {
-    console.error('✗ 数据库初始化失败:', err);
-    throw err;
+  const connected = await testConnection();
+  if (!connected) {
+    throw new Error('Unable to connect to Supabase Postgres');
   }
+
+  const tables = ['divination_records', 'trigrams', 'gua_data'];
+  for (const table of tables) {
+    const result: any = await query(
+      `SELECT COUNT(*)::int as count
+       FROM information_schema.tables
+       WHERE table_schema = 'public' AND table_name = ?`,
+      [table]
+    );
+
+    if (result[0]?.count === 0) {
+      console.warn(`Warning: table ${table} does not exist.`);
+      console.warn('  Run server/supabase/migrations/0001_init_schema.sql in Supabase SQL Editor.');
+    }
+  }
+
+  await checkBasicData();
+  console.log('Database initialization check completed');
 }
 
-// 检查基础数据
 async function checkBasicData() {
   try {
-    // 检查八卦数据
-    const trigramsCount: any = await queryOne('SELECT COUNT(*) as count FROM trigrams');
-    if (trigramsCount && trigramsCount.count === 0) {
-      console.warn('⚠ 警告: 八卦基础数据为空');
-      console.warn('  请运行: mysql -u root -p123456 < sql/insert_data.sql');
-    } else if (trigramsCount) {
-      console.log(`✓ 八卦基础数据: ${trigramsCount.count} 条`);
+    const trigramsCount: any = await queryOne('SELECT COUNT(*)::int as count FROM trigrams');
+    if (trigramsCount) {
+      console.log(`  trigrams: ${trigramsCount.count}`);
     }
 
-    // 检查六十四卦数据
-    const guaCount: any = await queryOne('SELECT COUNT(*) as count FROM gua_data');
-    if (guaCount && guaCount.count === 0) {
-      console.warn('⚠ 警告: 六十四卦数据为空');
-      console.warn('  请运行: mysql -u root -p123456 < sql/insert_data.sql');
-    } else if (guaCount) {
-      console.log(`✓ 六十四卦数据: ${guaCount.count} 条`);
+    const guaCount: any = await queryOne('SELECT COUNT(*)::int as count FROM gua_data');
+    if (guaCount) {
+      console.log(`  gua_data: ${guaCount.count}`);
     }
 
-    // 检查卦象记录
-    const recordsCount: any = await queryOne('SELECT COUNT(*) as count FROM divination_records');
+    const recordsCount: any = await queryOne('SELECT COUNT(*)::int as count FROM divination_records');
     if (recordsCount) {
-      console.log(`✓ 卦象记录: ${recordsCount.count} 条`);
+      console.log(`  divination_records: ${recordsCount.count}`);
     }
   } catch (err) {
-    console.error('检查基础数据失败:', err);
+    console.error('Basic data check failed:', err);
   }
 }
 
-// 数据库操作类
 export class DivinationRecordModel {
   private static appendUserScope(conditions: string[], params: any[], userId?: string) {
     if (userId) {
@@ -158,7 +298,6 @@ export class DivinationRecordModel {
     return conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
   }
 
-  // 创建记录
   static async create(record: {
     id: string;
     timestamp: number;
@@ -188,12 +327,11 @@ export class DivinationRecordModel {
       record.bian_gua,
       record.decoration,
       record.ai_analysis || null,
-      record.user_id || null
+      record.user_id || null,
     ]);
     return record.id;
   }
 
-  // 获取所有记录
   static async findAll(search?: string, limit: number = 100, offset: number = 0, userId?: string) {
     let sql = 'SELECT * FROM divination_records';
     const params: any[] = [];
@@ -206,16 +344,14 @@ export class DivinationRecordModel {
 
     this.appendUserScope(conditions, params, userId);
     sql += this.buildWhereClause(conditions);
-
     sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
     return await query(sql, params);
   }
 
-  // 获取记录总数
   static async count(search?: string, userId?: string) {
-    let sql = 'SELECT COUNT(*) as count FROM divination_records';
+    let sql = 'SELECT COUNT(*)::int as count FROM divination_records';
     const params: any[] = [];
     const conditions: string[] = [];
 
@@ -231,7 +367,6 @@ export class DivinationRecordModel {
     return result ? result.count : 0;
   }
 
-  // 根据ID获取记录
   static async findById(id: string, userId?: string) {
     const conditions = ['id = ?'];
     const params: any[] = [id];
@@ -240,7 +375,6 @@ export class DivinationRecordModel {
     return await queryOne(sql, params);
   }
 
-  // 更新AI解析
   static async updateAnalysis(id: string, aiAnalysis: string, userId?: string) {
     const conditions = ['id = ?'];
     const params: any[] = [aiAnalysis, id];
@@ -249,7 +383,6 @@ export class DivinationRecordModel {
     return await update(sql, params);
   }
 
-  // 删除记录
   static async deleteById(id: string, userId?: string) {
     const conditions = ['id = ?'];
     const params: any[] = [id];
@@ -258,9 +391,6 @@ export class DivinationRecordModel {
     return await remove(sql, params);
   }
 
-  // ========== 验证反馈相关方法 ==========
-
-  // 更新验证信息
   static async updateVerification(id: string, verificationData: {
     actual_result: string;
     accuracy_rating: number;
@@ -272,7 +402,7 @@ export class DivinationRecordModel {
       Date.now(),
       verificationData.accuracy_rating,
       verificationData.user_notes || null,
-      id
+      id,
     ];
     this.appendUserScope(conditions, params, userId);
 
@@ -288,7 +418,6 @@ export class DivinationRecordModel {
     return await update(sql, params);
   }
 
-  // 取消验证
   static async cancelVerification(id: string, userId?: string) {
     const conditions = ['id = ?'];
     const params: any[] = [id];
@@ -306,7 +435,6 @@ export class DivinationRecordModel {
     return await update(sql, params);
   }
 
-  // 获取已验证的记录
   static async findVerified(limit: number = 100, offset: number = 0, userId?: string) {
     const conditions = ['is_verified = TRUE'];
     const params: any[] = [];
@@ -321,7 +449,6 @@ export class DivinationRecordModel {
     return await query(sql, [...params, limit, offset]);
   }
 
-  // 获取待验证的记录（已起卦但未验证）
   static async findUnverified(limit: number = 100, offset: number = 0, userId?: string) {
     const conditions = ['is_verified = FALSE'];
     const params: any[] = [];
@@ -336,14 +463,13 @@ export class DivinationRecordModel {
     return await query(sql, [...params, limit, offset]);
   }
 
-  // 获取统计信息
   static async getStatistics(userId?: string) {
     const userCondition = userId ? ' WHERE user_id = ?' : '';
     const andUserCondition = userId ? ' AND user_id = ?' : '';
     const userParams = userId ? [userId] : [];
-    // 总记录数
+
     const totalResult: any = await queryOne(
-      `SELECT COUNT(*) as count FROM divination_records${userCondition}`,
+      `SELECT COUNT(*)::int as count FROM divination_records${userCondition}`,
       userParams
     );
     const total = totalResult ? totalResult.count : 0;
@@ -354,28 +480,25 @@ export class DivinationRecordModel {
     startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
 
     const todayResult: any = await queryOne(
-      `SELECT COUNT(*) as count FROM divination_records WHERE timestamp >= ? AND timestamp < ?${andUserCondition}`,
+      `SELECT COUNT(*)::int as count FROM divination_records WHERE timestamp >= ? AND timestamp < ?${andUserCondition}`,
       [startOfToday.getTime(), startOfTomorrow.getTime(), ...userParams]
     );
     const todayTotal = todayResult ? todayResult.count : 0;
 
-    // 已验证数
     const verifiedResult: any = await queryOne(
-      `SELECT COUNT(*) as count FROM divination_records WHERE is_verified = TRUE${andUserCondition}`,
+      `SELECT COUNT(*)::int as count FROM divination_records WHERE is_verified = TRUE${andUserCondition}`,
       userParams
     );
     const verified = verifiedResult ? verifiedResult.count : 0;
 
-    // 平均准确率
     const avgRatingResult: any = await queryOne(
       `SELECT AVG(accuracy_rating) as avg FROM divination_records WHERE is_verified = TRUE${andUserCondition}`,
       userParams
     );
     const avgRating = avgRatingResult && avgRatingResult.avg ? parseFloat(avgRatingResult.avg) : 0;
 
-    // 按准确度评分统计
     const ratingStatsResult: any = await query(`
-      SELECT accuracy_rating, COUNT(*) as count
+      SELECT accuracy_rating, COUNT(*)::int as count
       FROM divination_records
       WHERE is_verified = TRUE AND accuracy_rating IS NOT NULL${andUserCondition}
       GROUP BY accuracy_rating
@@ -389,9 +512,8 @@ export class DivinationRecordModel {
       }
     }
 
-    // 按起卦方法统计
     const methodStatsResult: any = await query(`
-      SELECT method, COUNT(*) as count
+      SELECT method, COUNT(*)::int as count
       FROM divination_records
       ${userCondition}
       GROUP BY method
@@ -405,12 +527,11 @@ export class DivinationRecordModel {
       }
     }
 
-    // 近30天占卜趋势
     const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
     const trendResult: any = await query(`
       SELECT
-        DATE(FROM_UNIXTIME(timestamp / 1000)) as date,
-        COUNT(*) as count
+        to_char(to_timestamp(timestamp / 1000), 'YYYY-MM-DD') as date,
+        COUNT(*)::int as count
       FROM divination_records
       WHERE timestamp >= ?${andUserCondition}
       GROUP BY date
@@ -433,52 +554,47 @@ export class DivinationRecordModel {
       avgRating: avgRating.toFixed(2),
       ratingStats,
       methodStats,
-      trend
+      trend,
     };
   }
 }
 
-// 八卦数据模型
 export class TrigramModel {
   static async findAll() {
     return await query('SELECT * FROM trigrams ORDER BY number');
   }
 
   static async findByName(name: string) {
-    const sql = 'SELECT * FROM trigrams WHERE name = ?';
-    return await queryOne(sql, [name]);
+    return await queryOne('SELECT * FROM trigrams WHERE name = ?', [name]);
   }
 }
 
-// 六十四卦数据模型
 export class GuaDataModel {
   static async findAll() {
     return await query('SELECT * FROM gua_data ORDER BY number');
   }
 
   static async findByNumber(number: number) {
-    const sql = 'SELECT * FROM gua_data WHERE number = ?';
-    return await queryOne(sql, [number]);
+    return await queryOne('SELECT * FROM gua_data WHERE number = ?', [number]);
   }
 
   static async findByName(name: string) {
-    const sql = 'SELECT * FROM gua_data WHERE name = ?';
-    return await queryOne(sql, [name]);
+    return await queryOne('SELECT * FROM gua_data WHERE name = ?', [name]);
   }
 
   static async findByTrigrams(upperTrigram: string, lowerTrigram: string) {
-    const sql = 'SELECT * FROM gua_data WHERE upper_trigram = ? AND lower_trigram = ?';
-    return await queryOne(sql, [upperTrigram, lowerTrigram]);
+    return await queryOne(
+      'SELECT * FROM gua_data WHERE upper_trigram = ? AND lower_trigram = ?',
+      [upperTrigram, lowerTrigram]
+    );
   }
 }
 
-// 优雅关闭连接池
 export async function closePool() {
-  await pool.end();
-  console.log('数据库连接池已关闭');
+  await pgPool.end();
+  console.log('Database pool closed');
 }
 
-// 默认导出
 export default {
   pool,
   query,
@@ -491,5 +607,5 @@ export default {
   closePool,
   DivinationRecordModel,
   TrigramModel,
-  GuaDataModel
+  GuaDataModel,
 };

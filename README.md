@@ -117,7 +117,7 @@
   - 安全的密钥存储
 
 - **数据管理**
-  - MySQL数据库持久化存储
+  - Supabase Postgres 持久化存储
   - 历史记录查询和搜索
   - 记录详情查看
   - 数据删除管理
@@ -142,7 +142,7 @@
 - Node.js
 - Express
 - TypeScript
-- MySQL 5.7+（通过 mysql2 驱动）
+- Supabase Postgres（通过 pg 驱动）
 - JWT认证（jsonwebtoken + bcryptjs）
 - lunar-javascript（农历转换和八字计算）
 
@@ -299,7 +299,7 @@ deploy.bat
 ```bash
 # 1. 配置环境变量
 cp .env.example .env
-nano .env  # 修改JWT_SECRET、MYSQL密码、DEEPSEEK_API_KEY
+nano .env  # 修改 SUPABASE_DB_URL、JWT_SECRET、DEEPSEEK_API_KEY
 
 # 2. 启动所有服务
 docker-compose up -d
@@ -579,7 +579,7 @@ docker-compose logs -f
 
 ### 添加新权限
 
-1. 在 `server/sql/02_auth_permissions_migration.sql` 中添加权限定义
+1. 在 `server/supabase/migrations/0001_init_schema.sql` 或新的 Supabase migration 中添加权限定义
 2. 在 `server/src/middleware/auth.ts` 中使用 `requirePermissions` 中间件
 3. 为相应角色分配新权限
 
@@ -590,8 +590,8 @@ docker-compose logs -f
    - 用户级密钥：在个人设置中配置（优先使用）
 
 2. **数据库初始化**：
-   - 使用Docker部署时，数据库会自动初始化
-   - 手动部署需要执行 `server/sql` 下的SQL脚本
+   - 使用 Supabase SQL Editor 或 Supabase CLI 执行 `server/supabase/migrations/0001_init_schema.sql`
+   - Docker 部署只启动应用服务，数据库由 Supabase 托管
    - 数据库包含：用户认证、权限系统、六爻记录、八字记录等表
 
 3. **默认账户安全**：
