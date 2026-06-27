@@ -1,27 +1,34 @@
-﻿import React from 'react';
+﻿import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import LoginPage from './pages/LoginPage';
-import DivinationPage from './pages/DivinationPage';
-import PaidianPage from './pages/PaidianPage';
-import JieguaPage from './pages/JieguaPage';
-import HistoryPage from './pages/HistoryPage';
-import ToolsPage from './pages/ToolsPage';
-import ApiKeySettingsPage from './pages/ApiKeySettingsPage';
-import ChangePasswordPage from './pages/ChangePasswordPage';
-import BaziInputPage from './pages/BaziInputPage';
-import BaziDisplayPage from './pages/BaziDisplayPage';
-import BaziAiAnalysisPage from './pages/BaziAiAnalysisPage';
-import BaziHistoryPage from './pages/BaziHistoryPage';
-import InviteManagementPage from './pages/admin/InviteManagementPage';
 import AdminLayout from './components/admin/AdminLayout';
-import DashboardPage from './pages/admin/DashboardPage';
-import UserManagementPage from './pages/admin/UserManagementPage';
-import RoleManagementPage from './pages/admin/RoleManagementPage';
-import LoginLogsPage from './pages/admin/LoginLogsPage';
-import SessionManagementPage from './pages/admin/SessionManagementPage';
 import './styles/index.css';
+
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const DivinationPage = lazy(() => import('./pages/DivinationPage'));
+const PaidianPage = lazy(() => import('./pages/PaidianPage'));
+const JieguaPage = lazy(() => import('./pages/JieguaPage'));
+const HistoryPage = lazy(() => import('./pages/HistoryPage'));
+const ToolsPage = lazy(() => import('./pages/ToolsPage'));
+const ApiKeySettingsPage = lazy(() => import('./pages/ApiKeySettingsPage'));
+const ChangePasswordPage = lazy(() => import('./pages/ChangePasswordPage'));
+const BaziInputPage = lazy(() => import('./pages/BaziInputPage'));
+const BaziDisplayPage = lazy(() => import('./pages/BaziDisplayPage'));
+const BaziAiAnalysisPage = lazy(() => import('./pages/BaziAiAnalysisPage'));
+const BaziHistoryPage = lazy(() => import('./pages/BaziHistoryPage'));
+const InviteManagementPage = lazy(() => import('./pages/admin/InviteManagementPage'));
+const DashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
+const UserManagementPage = lazy(() => import('./pages/admin/UserManagementPage'));
+const RoleManagementPage = lazy(() => import('./pages/admin/RoleManagementPage'));
+const LoginLogsPage = lazy(() => import('./pages/admin/LoginLogsPage'));
+const SessionManagementPage = lazy(() => import('./pages/admin/SessionManagementPage'));
+
+const PageFallback: React.FC = () => (
+  <div className="min-h-[240px] flex items-center justify-center text-gray-500">
+    加载中...
+  </div>
+);
 
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, logout, isAdmin } = useAuth();
@@ -102,6 +109,7 @@ const App: React.FC = () => {
   return (
     <Router>
       <AuthProvider>
+        <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
 
@@ -280,6 +288,7 @@ const App: React.FC = () => {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </AuthProvider>
     </Router>
   );
