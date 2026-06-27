@@ -3,6 +3,11 @@ FROM node:18-alpine AS build
 
 WORKDIR /app
 
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_PUBLISHABLE_KEY
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
+
 # 安装构建依赖（python3和build-base包含了make和g++）
 RUN apk add --no-cache python3 build-base git
 

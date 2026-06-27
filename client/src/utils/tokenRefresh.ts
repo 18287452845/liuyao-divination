@@ -1,3 +1,5 @@
+import { supabase } from '../lib/supabase';
+
 const LOGIN_PATH = '/login';
 
 let refreshPromise: Promise<string | null> | null = null;
@@ -12,6 +14,7 @@ export function clearStoredAuth(redirect = false) {
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
   localStorage.removeItem('user');
+  void supabase.auth.signOut();
 
   if (redirect) {
     redirectToLogin();
@@ -23,38 +26,21 @@ export function getStoredAccessToken() {
 }
 
 export async function refreshAuthTokens(): Promise<string | null> {
-  const storedRefreshToken = localStorage.getItem('refreshToken');
-
-  if (!storedRefreshToken) {
-    clearStoredAuth(true);
-    return null;
-  }
-
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
-        const response = await fetch('/api/auth/refresh', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ refreshToken: storedRefreshToken }),
-        });
+        const { data, error } = await supabase.auth.refreshSession();
 
-        const data = await response.json().catch(() => null);
-
-        if (!response.ok || !data?.success || !data?.data?.accessToken) {
+        if (error || !data.session?.access_token) {
           clearStoredAuth(true);
           return null;
         }
 
-        localStorage.setItem('accessToken', data.data.accessToken);
-        if (data.data.refreshToken) {
-          localStorage.setItem('refreshToken', data.data.refreshToken);
-        }
+        localStorage.setItem('accessToken', data.session.access_token);
+        localStorage.setItem('refreshToken', data.session.refresh_token);
 
-        return data.data.accessToken as string;
-      } catch (error) {
+        return data.session.access_token;
+      } catch {
         clearStoredAuth(true);
         return null;
       } finally {
