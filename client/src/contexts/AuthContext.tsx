@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+﻿import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
@@ -162,7 +162,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           await loadSessionUser(session);
         }
       } catch (error) {
-        console.error('获取用户信息失败:', error);
+        console.error('鑾峰彇鐢ㄦ埛淇℃伅澶辫触:', error);
         if (mounted) {
           setUser(null);
           setAccessToken(null);
@@ -179,19 +179,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) {
         return;
       }
 
-      try {
-        await loadSessionUser(session);
-      } catch (error) {
-        console.error('同步登录状态失败:', error);
-        setUser(null);
-        setAccessToken(null);
-        storeSession(null, null);
-      }
+      setTimeout(() => {
+        if (!mounted) {
+          return;
+        }
+
+        void loadSessionUser(session).catch((error) => {
+          console.error('同步登录状态失败:', error);
+          setUser(null);
+          setAccessToken(null);
+          storeSession(null, null);
+        });
+      }, 0);
     });
 
     return () => {
@@ -207,7 +211,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     });
 
     if (error) {
-      throw new Error(error.message || '登录失败');
+      throw new Error(error.message || '鐧诲綍澶辫触');
     }
 
     await loadSessionUser(data.session);
@@ -239,11 +243,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     });
 
     if (error) {
-      throw new Error(error.message || '注册失败');
+      throw new Error(error.message || '娉ㄥ唽澶辫触');
     }
 
     if (!data.session || !data.user) {
-      throw new Error('注册已提交，但当前 Supabase 项目要求邮箱确认。请在 Supabase Auth 中关闭邮件确认，或改用真实邮箱登录。');
+      throw new Error('注册已提交，但当前 Supabase 项目要求邮箱确认。请关闭邮箱确认，或使用真实邮箱完成确认后登录。');
     }
 
     const { error: profileError } = await supabase.from('users').insert({
@@ -257,7 +261,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     });
 
     if (profileError) {
-      throw new Error(profileError.message || '创建用户资料失败');
+      throw new Error(profileError.message || '鍒涘缓鐢ㄦ埛璧勬枡澶辫触');
     }
 
     await loadSessionUser(data.session);
