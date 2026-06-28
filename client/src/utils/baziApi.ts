@@ -91,6 +91,14 @@ async function buildBazi(data: CreateBaziRequest) {
   return { timestamp, bazi, decorated, dayun };
 }
 
+function toSerializableDecoration(decoration: any) {
+  const { lunarDate: _lunarDate, solarDate: _solarDate, ...bazi } = decoration.bazi || {};
+  return {
+    ...decoration,
+    bazi,
+  };
+}
+
 export const baziApi = {
   createBazi: async (data: CreateBaziRequest): Promise<ApiResponse<CreateBaziResponse>> => {
     try {
@@ -112,7 +120,7 @@ export const baziApi = {
         month_pillar: bazi.month.ganZhi,
         day_pillar: bazi.day.ganZhi,
         hour_pillar: bazi.hour.ganZhi,
-        bazi_data: JSON.stringify(decorated),
+        bazi_data: JSON.stringify(toSerializableDecoration(decorated)),
         dayun_data: JSON.stringify(dayun.steps),
         qiyun_age: dayun.qiyunAge,
         shun_pai: dayun.shunPai,
