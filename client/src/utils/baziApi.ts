@@ -107,6 +107,8 @@ export const baziApi = {
       const id = crypto.randomUUID();
       const now = Date.now();
 
+      const serializableDecorated = toSerializableDecoration(decorated);
+
       const { error } = await supabase.from('bazi_records').insert({
         id,
         user_id: userId,
@@ -120,7 +122,7 @@ export const baziApi = {
         month_pillar: bazi.month.ganZhi,
         day_pillar: bazi.day.ganZhi,
         hour_pillar: bazi.hour.ganZhi,
-        bazi_data: JSON.stringify(toSerializableDecoration(decorated)),
+        bazi_data: JSON.stringify(serializableDecorated),
         dayun_data: JSON.stringify(dayun.steps),
         qiyun_age: dayun.qiyunAge,
         shun_pai: dayun.shunPai,
@@ -133,10 +135,10 @@ export const baziApi = {
         success: true,
         data: {
           id,
-          bazi: decorated.bazi,
-          shiShen: decorated.shiShen,
-          wuXing: decorated.wuXing,
-          relations: decorated.relations,
+          bazi: serializableDecorated.bazi,
+          shiShen: serializableDecorated.shiShen,
+          wuXing: serializableDecorated.wuXing,
+          relations: serializableDecorated.relations,
           dayun,
           qiyunAge: dayun.qiyunAge,
         },
@@ -220,14 +222,15 @@ export const baziApi = {
     birthLocation?: string;
   }): Promise<ApiResponse<CalculatePillarsResponse>> => {
     try {
-      const { bazi, decorated, dayun } = await buildBazi(data);
+      const { decorated, dayun } = await buildBazi(data);
+      const serializableDecorated = toSerializableDecoration(decorated);
       return normalizeApiResponse({
         success: true,
         data: {
-          bazi,
-          shiShen: decorated.shiShen,
-          wuXing: decorated.wuXing,
-          relations: decorated.relations,
+          bazi: serializableDecorated.bazi,
+          shiShen: serializableDecorated.shiShen,
+          wuXing: serializableDecorated.wuXing,
+          relations: serializableDecorated.relations,
           dayun,
           qiyunAge: dayun.qiyunAge,
         },
