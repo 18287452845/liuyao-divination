@@ -10,10 +10,52 @@ function sse(payload: unknown) {
   return `data: ${JSON.stringify(payload)}\n\n`;
 }
 
+function formatChinaTime(value: unknown) {
+  const date = typeof value === 'number' || typeof value === 'string'
+    ? new Date(value)
+    : new Date();
+
+  if (Number.isNaN(date.getTime())) {
+    return '未提供有效时间';
+  }
+
+  return new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(date);
+}
+
+function buildTimeContext(body: any) {
+  const requestTime = body.requestTimestamp || Date.now();
+  const divinationTime = body.data?.timestamp ?? body.timestamp;
+  const birthTime = body.birthDatetime ?? body.data?.birthDatetime;
+
+  return [
+    `当前北京时间：${formatChinaTime(requestTime)}。`,
+    `当前 Unix 毫秒时间戳：${requestTime}。`,
+    divinationTime
+      ? `本次起卦时间：${formatChinaTime(divinationTime)}，Unix 毫秒时间戳：${divinationTime}。`
+      : '本次起卦时间：未提供，若问题涉及时间，请以“当前北京时间”为准。',
+    birthTime
+      ? `出生时间：${formatChinaTime(birthTime)}，Unix 毫秒时间戳：${birthTime}。`
+      : '',
+    '时间判断必须以上述北京时间为准，不要使用模型训练日期、服务器 UTC 日期或自行猜测的日期。',
+  ].filter(Boolean).join('\n');
+}
+
 function buildPrompt(body: any) {
+  const timeContext = buildTimeContext(body);
+
   if (body.type === 'bazi') {
     return [
       '你是一位严谨的传统八字命理分析助手。请结合四柱、十神、五行、地支关系和大运，用中文给出结构化分析。',
+      timeContext,
       `姓名：${body.name || '未提供'}`,
       `性别：${body.gender || '未提供'}`,
       `关注问题：${body.question || '综合分析'}`,
@@ -24,6 +66,8 @@ function buildPrompt(body: any) {
 
   return [
     '你是一位严谨的传统六爻解卦助手。请结合本卦、变卦、世应、六亲、六神、动爻、空亡和用户问题，用中文给出结构化分析。',
+    timeContext,
+    '如果分析中涉及“现在、今天、近期、当前月份、当前年份、年龄、应期”，必须显式引用上方的当前北京时间或起卦时间。',
     `问题：${body.question || body.data?.question || '未提供'}`,
     `卦象数据：${JSON.stringify(body.data || body)}`,
   ].join('\n');
@@ -97,7 +141,10 @@ Deno.serve(async (req) => {
       stream: true,
       temperature: 0.6,
       messages: [
-        { role: 'system', content: '你只提供传统命理分析，不做绝对化承诺，不替代法律、医疗或投资建议。' },
+        {
+          role: 'system',
+          content: '你只提供传统命理分析，不做绝对化承诺，不替代法律、医疗或投资建议。涉及时间时必须以用户消息中的北京时间为准。',
+        },
         { role: 'user', content: buildPrompt(body) },
       ],
     }),
@@ -132,7 +179,7 @@ Deno.serve(async (req) => {
               controller.enqueue(encoder.encode(sse({ content })));
             }
           } catch {
-            // Ignore partial JSON chunks from the upstream stream.
+            // Ignore malformed chunks from the upstream stream.
           }
         }
       },

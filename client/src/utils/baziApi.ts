@@ -264,7 +264,7 @@ export const analyzeBaziStream = async (
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ ...data, type: 'bazi' }),
+      body: JSON.stringify({ ...data, type: 'bazi', requestTimestamp: Date.now() }),
     });
 
     if (!response.ok) {

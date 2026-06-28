@@ -355,7 +355,7 @@ export const analyzeGuaStream = async (
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ type: 'gua', data }),
+      body: JSON.stringify({ type: 'gua', data, requestTimestamp: Date.now() }),
     });
 
     if (!response.ok) {
