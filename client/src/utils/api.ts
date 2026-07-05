@@ -14,6 +14,7 @@ import {
 } from '../domain/liuyao/liuyao';
 import { analyzeLiuyaoJudgement } from '../domain/liuyao/liuyaoAnalysis';
 import { normalizeLegacyText } from './textNormalize';
+import type { AiChatMessage } from '../types/ai';
 
 function getResponseErrorMessage(errorText: string, fallback: string) {
   if (!errorText) {
@@ -355,7 +356,7 @@ export const analyzeGuaStream = async (
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ type: 'gua', data, requestTimestamp: Date.now() }),
+      body: JSON.stringify({ type: 'gua', mode: 'analysis', data, requestTimestamp: Date.now() }),
     });
 
     if (!response.ok) {
@@ -410,6 +411,94 @@ export const analyzeGuaStream = async (
     }
   } catch (error: any) {
     onError(normalizeLegacyText(error.message || '解卦失败'));
+  }
+};
+
+export const chatGuaStream = async (
+  data: {
+    question: string;
+    analysis: string;
+    messages: AiChatMessage[];
+    context: any;
+  },
+  onChunk: (content: string) => void,
+  onError: (error: string) => void,
+  onComplete?: () => void
+) => {
+  let hasContent = false;
+
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      throw new Error('未登录');
+    }
+
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-ai`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        type: 'gua',
+        mode: 'chat',
+        question: data.question,
+        analysis: data.analysis,
+        messages: data.messages,
+        data: data.context,
+        requestTimestamp: Date.now(),
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(getResponseErrorMessage(errorText, `AI 追问请求失败 (${response.status})`));
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+
+    if (!reader) {
+      throw new Error('无法读取流式响应');
+    }
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n').filter((line) => line.trim() !== '');
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+
+        const payload = line.slice(6);
+        if (payload === '[DONE]') {
+          if (hasContent && onComplete) onComplete();
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(payload);
+          if (parsed.content) {
+            hasContent = true;
+            onChunk(parsed.content);
+          } else if (parsed.error) {
+            onError(normalizeLegacyText(parsed.error));
+            return;
+          }
+        } catch {
+          // Ignore malformed SSE chunks from upstream.
+        }
+      }
+    }
+
+    if (hasContent && onComplete) onComplete();
+  } catch (error: any) {
+    onError(normalizeLegacyText(error.message || 'AI 追问失败'));
   }
 };
 

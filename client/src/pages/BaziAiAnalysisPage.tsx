@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { baziApi, analyzeBaziStream } from '../utils/baziApi';
+import { baziApi, analyzeBaziStream, chatBaziStream } from '../utils/baziApi';
+import AiChatPanel from '../components/AiChatPanel';
 import type { BaziRecord } from '../types/bazi';
+import type { AiChatMessage } from '../types/ai';
 
 /**
  * 八字AI批注页面
@@ -18,6 +20,10 @@ const BaziAiAnalysisPage: React.FC = () => {
   const [error, setError] = useState('');
   const [record, setRecord] = useState<BaziRecord | null>(null);
   const [analysis, setAnalysis] = useState('');
+  const [chatInput, setChatInput] = useState('');
+  const [chatError, setChatError] = useState('');
+  const [chatting, setChatting] = useState(false);
+  const [chatMessages, setChatMessages] = useState<AiChatMessage[]>([]);
 
   useEffect(() => {
     if (id) {
@@ -52,6 +58,8 @@ const BaziAiAnalysisPage: React.FC = () => {
     setAnalyzing(true);
     setError('');
     setAnalysis('');
+    setChatMessages([]);
+    setChatError('');
 
     try {
       await analyzeBaziStream(
@@ -80,6 +88,58 @@ const BaziAiAnalysisPage: React.FC = () => {
       setAnalyzing(false);
     }
   };
+
+  const handleChatSubmit = async () => {
+    if (!record || !analysis || chatting) return;
+
+    const question = chatInput.trim();
+    if (!question) return;
+
+    const userMessage: AiChatMessage = { role: 'user', content: question };
+    const history = [...chatMessages, userMessage];
+
+    setChatInput('');
+    setChatError('');
+    setChatting(true);
+    setChatMessages([...history, { role: 'assistant', content: '' }]);
+
+    await chatBaziStream(
+      {
+        recordId: id,
+        question,
+        analysis,
+        messages: chatMessages,
+        baziData: record.baziData,
+        dayunData: record.dayunData.steps.slice(0, 5),
+        name: record.name,
+        gender: record.gender,
+        birthDatetime: record.birthDatetime,
+      },
+      (content) => {
+        setChatMessages((prev) => {
+          const next = [...prev];
+          const lastIndex = next.length - 1;
+          if (next[lastIndex]?.role === 'assistant') {
+            next[lastIndex] = { ...next[lastIndex], content: next[lastIndex].content + content };
+          }
+          return next;
+        });
+      },
+      (errorMsg) => {
+        setChatError(errorMsg);
+        setChatting(false);
+      },
+      () => {
+        setChatting(false);
+      }
+    );
+  };
+
+  useEffect(() => {
+    if (!analyzing && analysis && id) {
+      baziApi.updateAiAnalysis(id, analysis).catch(console.error);
+    }
+  }, [analyzing, analysis, id]);
 
   if (loading) {
     return (
@@ -283,6 +343,18 @@ const BaziAiAnalysisPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {analysis && !analyzing && (
+        <AiChatPanel
+          messages={chatMessages}
+          value={chatInput}
+          onValueChange={setChatInput}
+          onSubmit={handleChatSubmit}
+          loading={chatting}
+          error={chatError}
+          placeholder="继续追问，例如：当前大运对这件事有什么影响？"
+        />
+      )}
 
       {/* 提示信息 */}
       <div className="bg-blue-50 rounded-lg p-4">

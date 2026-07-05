@@ -2,7 +2,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { divinationApi, analyzeGuaStream } from '../utils/api';
+import { divinationApi, analyzeGuaStream, chatGuaStream } from '../utils/api';
 import { useToast } from '../hooks/useToast';
 import { shareRecord, copyToClipboard } from '../utils/export';
 import { normalizeLegacyText } from '../utils/textNormalize';
@@ -10,7 +10,9 @@ import GuaDisplay from '../components/GuaDisplay';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import ToastContainer from '../components/ToastContainer';
 import ScrollToTop from '../components/ScrollToTop';
+import AiChatPanel from '../components/AiChatPanel';
 import type { DivinationRecord } from '../types';
+import type { AiChatMessage } from '../types/ai';
 
 const JieguaPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -18,7 +20,11 @@ const JieguaPage: React.FC = () => {
   const [record, setRecord] = useState<DivinationRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+  const [chatting, setChatting] = useState(false);
   const [analysis, setAnalysis] = useState('');
+  const [chatInput, setChatInput] = useState('');
+  const [chatError, setChatError] = useState('');
+  const [chatMessages, setChatMessages] = useState<AiChatMessage[]>([]);
   const toast = useToast();
 
   useEffect(() => {
@@ -47,18 +53,12 @@ const JieguaPage: React.FC = () => {
 
     setAnalyzing(true);
     setAnalysis('');
+    setChatMessages([]);
+    setChatError('');
 
     try {
       await analyzeGuaStream(
-        {
-          benGua: record.benGua,
-          bianGua: record.bianGua,
-          decoration: record.decoration,
-          question: record.question,
-          gender: record.gender,
-          bazi: record.bazi,
-          timestamp: record.timestamp,
-        },
+        buildGuaContext(record),
         (content) => {
           setAnalysis((prev) => prev + content);
         },
@@ -78,6 +78,57 @@ const JieguaPage: React.FC = () => {
       toast.error(errorMsg);
       setAnalyzing(false);
     }
+  };
+
+  const buildGuaContext = (currentRecord: DivinationRecord) => ({
+    benGua: currentRecord.benGua,
+    bianGua: currentRecord.bianGua,
+    decoration: currentRecord.decoration,
+    question: currentRecord.question,
+    gender: currentRecord.gender,
+    bazi: currentRecord.bazi,
+    timestamp: currentRecord.timestamp,
+  });
+
+  const handleChatSubmit = async () => {
+    if (!record || !analysis || chatting) return;
+
+    const question = chatInput.trim();
+    if (!question) return;
+
+    const userMessage: AiChatMessage = { role: 'user', content: question };
+    const history = [...chatMessages, userMessage];
+
+    setChatInput('');
+    setChatError('');
+    setChatting(true);
+    setChatMessages([...history, { role: 'assistant', content: '' }]);
+
+    await chatGuaStream(
+      {
+        question,
+        analysis,
+        messages: chatMessages,
+        context: buildGuaContext(record),
+      },
+      (content) => {
+        setChatMessages((prev) => {
+          const next = [...prev];
+          const lastIndex = next.length - 1;
+          if (next[lastIndex]?.role === 'assistant') {
+            next[lastIndex] = { ...next[lastIndex], content: next[lastIndex].content + content };
+          }
+          return next;
+        });
+      },
+      (error) => {
+        setChatError(error);
+        setChatting(false);
+      },
+      () => {
+        setChatting(false);
+      }
+    );
   };
 
   const handleShare = async () => {
@@ -303,6 +354,18 @@ const JieguaPage: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {analysis && !analyzing && (
+              <AiChatPanel
+                messages={chatMessages}
+                value={chatInput}
+                onValueChange={setChatInput}
+                onSubmit={handleChatSubmit}
+                loading={chatting}
+                error={chatError}
+                placeholder="继续追问，例如：这个卦的应期应该怎么看？"
+              />
+            )}
 
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <button onClick={() => navigate(`/paidian/${id}`)} className="btn-secondary min-w-0">

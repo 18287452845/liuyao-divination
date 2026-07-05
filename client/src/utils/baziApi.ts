@@ -13,6 +13,7 @@ import type {
   GetRecordsResponse,
   SSEChunk,
 } from '../types/bazi';
+import type { AiChatMessage } from '../types/ai';
 
 function normalizeApiResponse<T>(response: ApiResponse<T>): ApiResponse<T> {
   return {
@@ -264,7 +265,7 @@ export const analyzeBaziStream = async (
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ ...data, type: 'bazi', requestTimestamp: Date.now() }),
+      body: JSON.stringify({ ...data, type: 'bazi', mode: 'analysis', requestTimestamp: Date.now() }),
     });
 
     if (!response.ok) {
@@ -323,6 +324,89 @@ export const analyzeBaziSync = async (
     }
   );
   return { success: true, data: { analysis: content, model: 'deepseek' } };
+};
+
+export const chatBaziStream = async (
+  data: {
+    question: string;
+    analysis: string;
+    messages: AiChatMessage[];
+    recordId?: string;
+    baziData: unknown;
+    dayunData: unknown;
+    name?: string;
+    gender?: string;
+    birthDatetime?: number;
+  },
+  onChunk: (content: string) => void,
+  onError: (error: string) => void,
+  onComplete?: () => void
+): Promise<void> => {
+  let hasContent = false;
+
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      throw new Error('未登录');
+    }
+
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-ai`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        ...data,
+        type: 'bazi',
+        mode: 'chat',
+        requestTimestamp: Date.now(),
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI 追问请求失败 (${response.status})`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('无法读取流式响应');
+
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      for (const line of decoder.decode(value).split('\n').filter((item) => item.trim())) {
+        if (!line.startsWith('data: ')) continue;
+        const dataStr = line.slice(6);
+        if (dataStr === '[DONE]') {
+          if (hasContent) onComplete?.();
+          return;
+        }
+
+        try {
+          const parsed: SSEChunk = JSON.parse(dataStr);
+          if (parsed.content) {
+            hasContent = true;
+            onChunk(parsed.content);
+          }
+          if (parsed.error) {
+            onError(normalizeLegacyText(parsed.error));
+            return;
+          }
+        } catch {
+          // Ignore malformed SSE chunks.
+        }
+      }
+    }
+
+    if (hasContent) onComplete?.();
+  } catch (error: any) {
+    onError(normalizeLegacyText(error.message || 'AI 追问失败'));
+  }
 };
 
 export default baziApi;
