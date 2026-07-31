@@ -32,7 +32,7 @@ RUN npx vite --version && \
 # 生产阶段
 FROM nginx:1.25-alpine
 
-# nginx用户和curl已存在于基础镜像中，无需额外安装
+# BusyBox wget is available in the Alpine image and is used by the health check.
 
 # 复制构建产物
 COPY --from=build /app/dist /usr/share/nginx/html
@@ -69,7 +69,7 @@ EXPOSE 80
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:80/
+  CMD wget -qO- http://127.0.0.1:80/ >/dev/null || exit 1
 
 # 启动nginx
 CMD ["nginx", "-g", "daemon off;"]

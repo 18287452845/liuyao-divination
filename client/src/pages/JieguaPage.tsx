@@ -13,6 +13,37 @@ import ScrollToTop from '../components/ScrollToTop';
 import AiChatPanel from '../components/AiChatPanel';
 import type { DivinationRecord } from '../types';
 import type { AiChatMessage } from '../types/ai';
+import { useRef } from 'react';
+
+const CHAT_STORAGE_PREFIX = 'liuyao-chat:';
+const CHAT_MAX_LENGTH = 500;
+const CHAT_MAX_STORED_MESSAGES = 20;
+const CHAT_SUGGESTIONS = [
+  '用神为什么这样取？',
+  '应期的判断依据是什么？',
+  '哪些动爻变化最关键？',
+];
+
+function getStoredChatMessages(recordId: string): AiChatMessage[] {
+  try {
+    const stored = sessionStorage.getItem(`${CHAT_STORAGE_PREFIX}${recordId}`);
+    if (!stored) return [];
+
+    const messages = JSON.parse(stored);
+    if (!Array.isArray(messages)) return [];
+
+    return messages
+      .filter((message): message is AiChatMessage => (
+        Boolean(message) &&
+        (message.role === 'user' || message.role === 'assistant') &&
+        typeof message.content === 'string' &&
+        message.content.trim().length > 0
+      ))
+      .slice(-CHAT_MAX_STORED_MESSAGES);
+  } catch {
+    return [];
+  }
+}
 
 const JieguaPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +56,10 @@ const JieguaPage: React.FC = () => {
   const [chatInput, setChatInput] = useState('');
   const [chatError, setChatError] = useState('');
   const [chatMessages, setChatMessages] = useState<AiChatMessage[]>([]);
+  const chatAbortControllerRef = useRef<AbortController | null>(null);
+  const chatHadContentRef = useRef(false);
+  const chatPreviousMessagesRef = useRef<AiChatMessage[]>([]);
+  const chatQuestionRef = useRef('');
   const toast = useToast();
 
   useEffect(() => {
@@ -37,6 +72,7 @@ const JieguaPage: React.FC = () => {
     try {
       const data = await divinationApi.getRecordById(recordId);
       setRecord(data);
+      setChatMessages(getStoredChatMessages(recordId));
       if (data.aiAnalysis) {
         setAnalysis(data.aiAnalysis);
       }
@@ -51,10 +87,14 @@ const JieguaPage: React.FC = () => {
   const handleAnalyze = async () => {
     if (!record) return;
 
+    chatAbortControllerRef.current?.abort();
+    chatAbortControllerRef.current = null;
     setAnalyzing(true);
+    setChatting(false);
     setAnalysis('');
     setChatMessages([]);
     setChatError('');
+    sessionStorage.removeItem(`${CHAT_STORAGE_PREFIX}${record.id}`);
 
     try {
       await analyzeGuaStream(
@@ -90,15 +130,25 @@ const JieguaPage: React.FC = () => {
     timestamp: currentRecord.timestamp,
   });
 
-  const handleChatSubmit = async () => {
+  const handleChatSubmit = async (suggestedQuestion?: string) => {
     if (!record || !analysis || chatting) return;
 
-    const question = chatInput.trim();
+    const question = (suggestedQuestion ?? chatInput).trim();
     if (!question) return;
+    if (question.length > CHAT_MAX_LENGTH) {
+      setChatError(`追问不能超过 ${CHAT_MAX_LENGTH} 个字符`);
+      return;
+    }
 
     const userMessage: AiChatMessage = { role: 'user', content: question };
-    const history = [...chatMessages, userMessage];
+    const previousMessages = chatMessages.slice(-CHAT_MAX_STORED_MESSAGES);
+    const history = [...previousMessages, userMessage];
+    const controller = new AbortController();
 
+    chatAbortControllerRef.current = controller;
+    chatHadContentRef.current = false;
+    chatPreviousMessagesRef.current = previousMessages;
+    chatQuestionRef.current = question;
     setChatInput('');
     setChatError('');
     setChatting(true);
@@ -106,12 +156,13 @@ const JieguaPage: React.FC = () => {
 
     await chatGuaStream(
       {
+        recordId: String(record.id),
         question,
         analysis,
-        messages: chatMessages,
-        context: buildGuaContext(record),
+        messages: previousMessages,
       },
       (content) => {
+        chatHadContentRef.current = true;
         setChatMessages((prev) => {
           const next = [...prev];
           const lastIndex = next.length - 1;
@@ -122,13 +173,43 @@ const JieguaPage: React.FC = () => {
         });
       },
       (error) => {
+        chatAbortControllerRef.current = null;
+        setChatMessages(previousMessages);
+        setChatInput(question);
         setChatError(error);
         setChatting(false);
       },
       () => {
+        chatAbortControllerRef.current = null;
         setChatting(false);
-      }
+      },
+      { signal: controller.signal }
     );
+  };
+
+  const handleStopChat = () => {
+    const controller = chatAbortControllerRef.current;
+    if (!controller) return;
+
+    controller.abort();
+    chatAbortControllerRef.current = null;
+    setChatting(false);
+
+    if (!chatHadContentRef.current) {
+      setChatMessages(chatPreviousMessagesRef.current);
+      setChatInput(chatQuestionRef.current);
+    }
+
+    toast.warning(chatHadContentRef.current ? '已停止生成，当前回答已保留' : '已取消本次追问');
+  };
+
+  const handleClearChat = () => {
+    if (!record) return;
+
+    setChatMessages([]);
+    setChatInput('');
+    setChatError('');
+    sessionStorage.removeItem(`${CHAT_STORAGE_PREFIX}${record.id}`);
   };
 
   const handleShare = async () => {
@@ -177,6 +258,25 @@ const JieguaPage: React.FC = () => {
       divinationApi.updateAiAnalysis(id, analysis).catch(console.error);
     }
   }, [analyzing, analysis, id]);
+
+  useEffect(() => {
+    if (!record || chatting) return;
+
+    const key = `${CHAT_STORAGE_PREFIX}${record.id}`;
+    const completedMessages = chatMessages
+      .filter((message) => message.content.trim().length > 0)
+      .slice(-CHAT_MAX_STORED_MESSAGES);
+
+    if (completedMessages.length > 0) {
+      sessionStorage.setItem(key, JSON.stringify(completedMessages));
+    } else {
+      sessionStorage.removeItem(key);
+    }
+  }, [record?.id, chatMessages, chatting]);
+
+  useEffect(() => () => {
+    chatAbortControllerRef.current?.abort();
+  }, []);
 
   const formatBazi = (bazi?: DivinationRecord['bazi']) => {
     if (!bazi) return '';
@@ -363,6 +463,10 @@ const JieguaPage: React.FC = () => {
                 onSubmit={handleChatSubmit}
                 loading={chatting}
                 error={chatError}
+                maxLength={CHAT_MAX_LENGTH}
+                suggestions={CHAT_SUGGESTIONS}
+                onStop={handleStopChat}
+                onClear={handleClearChat}
                 placeholder="继续追问，例如：这个卦的应期应该怎么看？"
               />
             )}

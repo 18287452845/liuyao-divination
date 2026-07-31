@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { FIVE_ELEMENTS, FIVE_ELEMENTS_RELATION } from './constants';
+import { FIVE_ELEMENTS_RELATION } from './constants';
 import type { FuShen, Gua, GuaDecoration } from './liuyao';
 
 export type DivinationCategory =
@@ -247,11 +246,6 @@ function getLineElement(decoration: GuaDecoration, position: number): string {
 
 function getLineRelative(decoration: GuaDecoration, position: number): string {
   return normalizeRelative(decoration.sixRelatives[position]);
-}
-
-function getDayElement(decoration: GuaDecoration): string | undefined {
-  const branch = decoration.dayGanZhi?.slice(1);
-  return normalizeElement(FIVE_ELEMENTS[branch] || '');
 }
 
 function generates(from: string, to: string): boolean {

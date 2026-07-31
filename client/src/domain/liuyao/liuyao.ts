@@ -1,7 +1,7 @@
-// @ts-nocheck
-import { Lunar, Solar } from 'lunar-javascript';
+import { Lunar } from 'lunar-javascript';
 import {
   TRIGRAMS,
+  TRIGRAM_ORDER,
   GUA_NAMES,
   NAJIA,
   EARTH_BRANCHES,
@@ -15,11 +15,12 @@ import {
   FIVE_ELEMENTS_SEASON,
   LIU_HE,
   LIU_CHONG,
-  TWELVE_GROWTH,
   SAN_HE,
-  BRANCH_SAN_HE
+  SIX_SPIRIT_START_BY_DAY_STEM,
+  ADVANCING_BRANCHES,
+  RETREATING_BRANCHES
 } from './constants';
-import { getGuaPalaceInfo, getShiYingPositions, getGuaPalace } from './bagong';
+import { getGuaPalaceInfo, getShiYingPositions } from './bagong';
 
 export type YaoType = 0 | 1;
 
@@ -113,36 +114,76 @@ export interface YingQi {
   description: string;                // 详细说明
 }
 
+const LINE_COUNT = 6;
+const YAO_NAMES = ['初爻', '二爻', '三爻', '四爻', '五爻', '上爻'] as const;
+
+type YaoLines = [YaoType, YaoType, YaoType, YaoType, YaoType, YaoType];
+type YaoChanges = [boolean, boolean, boolean, boolean, boolean, boolean];
+
+function assertValidDate(date: Date): void {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    throw new RangeError('起卦时间无效');
+  }
+}
+
+function assertPositiveInteger(value: number, label: string): void {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new RangeError(`${label}必须是正整数`);
+  }
+}
+
+function toCycleIndex(value: number, cycleLength: number): number {
+  return ((value - 1) % cycleLength + cycleLength) % cycleLength;
+}
+
+function assertYaoLines(lines: number[]): asserts lines is YaoLines {
+  if (!Array.isArray(lines) || lines.length !== LINE_COUNT || lines.some(line => line !== 0 && line !== 1)) {
+    throw new RangeError('爻象必须是从初爻到上爻的6个0或1');
+  }
+}
+
+function assertYaoChanges(changes: boolean[]): asserts changes is YaoChanges {
+  if (!Array.isArray(changes) || changes.length !== LINE_COUNT || changes.some(change => typeof change !== 'boolean')) {
+    throw new RangeError('动爻标记必须是从初爻到上爻的6个布尔值');
+  }
+}
+
 // 时间起卦法
 export function divinationByTime(date: Date): Gua {
+  assertValidDate(date);
   const lunar = Lunar.fromDate(date);
 
-  // 农历年月日时
-  const year = lunar.getYear();
-  const month = lunar.getMonth();
+  // 梅花易数时间起卦取年支数（子1……亥12），而非公元年份。
+  const yearBranch = lunar.getYearZhi();
+  const year = TWELVE_BRANCHES.indexOf(yearBranch) + 1;
+  // 闰月在 lunar-javascript 中为负数，起卦仍按同名月数计。
+  const month = Math.abs(lunar.getMonth());
   const day = lunar.getDay();
-  const hour = Math.floor(date.getHours() / 2) + 1; // 转换为时辰
+  const hourBranch = lunar.getTimeZhi();
+  const hour = TWELVE_BRANCHES.indexOf(hourBranch) + 1;
 
-  // 上卦 = (年 + 月 + 日) % 8
-  const upperNum = (year + month + day) % 8;
-  const upperIndex = upperNum === 0 ? 7 : upperNum - 1;
+  if (year === 0 || hour === 0) {
+    throw new RangeError('无法识别起卦时间的干支');
+  }
 
-  // 下卦 = (年 + 月 + 日 + 时) % 8
-  const lowerNum = (year + month + day + hour) % 8;
-  const lowerIndex = lowerNum === 0 ? 7 : lowerNum - 1;
-
-  // 动爻 = (年 + 月 + 日 + 时) % 6
-  const changeYao = (year + month + day + hour) % 6;
-  const changeIndex = changeYao === 0 ? 5 : changeYao - 1;
+  const dateTotal = year + month + day;
+  const timeTotal = dateTotal + hour;
+  const upperIndex = toCycleIndex(dateTotal, 8);
+  const lowerIndex = toCycleIndex(timeTotal, 8);
+  const changeIndex = toCycleIndex(timeTotal, 6);
 
   return createGua(upperIndex, lowerIndex, changeIndex);
 }
 
 // 数字起卦法
 export function divinationByNumbers(num1: number, num2: number, num3: number): Gua {
-  const upperIndex = (num1 % 8 === 0 ? 8 : num1 % 8) - 1;
-  const lowerIndex = (num2 % 8 === 0 ? 8 : num2 % 8) - 1;
-  const changeIndex = (num3 % 6 === 0 ? 6 : num3 % 6) - 1;
+  assertPositiveInteger(num1, '第一个数字');
+  assertPositiveInteger(num2, '第二个数字');
+  assertPositiveInteger(num3, '第三个数字');
+
+  const upperIndex = toCycleIndex(num1, 8);
+  const lowerIndex = toCycleIndex(num2, 8);
+  const changeIndex = toCycleIndex(num3, 6);
 
   return createGua(upperIndex, lowerIndex, changeIndex);
 }
@@ -151,68 +192,33 @@ export function divinationByNumbers(num1: number, num2: number, num3: number): G
 export function divinationByManual(yaoResults: number[]): Gua {
   // yaoResults 是6个数字，每个数字是摇卦结果（6,7,8,9）
   // 6: 老阴（变）, 7: 少阳, 8: 少阴, 9: 老阳（变）
-  const lines: YaoType[] = [];
-  const changes: boolean[] = [];
+  if (!Array.isArray(yaoResults) || yaoResults.length !== LINE_COUNT ||
+      yaoResults.some(result => !Number.isInteger(result) || result < 6 || result > 9)) {
+    throw new RangeError('手动摇卦必须提供从初爻到上爻的6个结果，每个结果只能是6、7、8或9');
+  }
 
-  yaoResults.forEach(result => {
-    if (result === 6) {
-      lines.push(0); // 阴爻
-      changes.push(true); // 动爻
-    } else if (result === 7) {
-      lines.push(1); // 阳爻
-      changes.push(false);
-    } else if (result === 8) {
-      lines.push(0); // 阴爻
-      changes.push(false);
-    } else if (result === 9) {
-      lines.push(1); // 阳爻
-      changes.push(true); // 动爻
-    }
-  });
+  const lines = yaoResults.map(result => result === 7 || result === 9 ? 1 : 0);
+  const changes = yaoResults.map(result => result === 6 || result === 9);
+  assertYaoLines(lines);
+  assertYaoChanges(changes);
 
-  const upperLines = lines.slice(3, 6);
-  const lowerLines = lines.slice(0, 3);
-
-  const upperTrigram = findTrigramByLines(upperLines);
-  const lowerTrigram = findTrigramByLines(lowerLines);
-
-  return {
-    name: getGuaName(upperTrigram, lowerTrigram),
-    lines: lines as [YaoType, YaoType, YaoType, YaoType, YaoType, YaoType],
-    changes: changes as [boolean, boolean, boolean, boolean, boolean, boolean],
-    trigrams: {
-      upper: upperTrigram,
-      lower: lowerTrigram
-    }
-  };
+  return createGuaFromLines(lines, changes);
 }
 
 // 手动输入卦象法
 export function divinationByInput(lines: number[], changes: boolean[]): Gua {
   // lines 是6个数字，每个数字是0（阴爻）或1（阳爻）
   // changes 是6个布尔值，表示每一爻是否为动爻
-  const yaoLines = lines as [YaoType, YaoType, YaoType, YaoType, YaoType, YaoType];
-  const yaoChanges = changes as [boolean, boolean, boolean, boolean, boolean, boolean];
-
-  const upperLines = yaoLines.slice(3, 6);
-  const lowerLines = yaoLines.slice(0, 3);
-
-  const upperTrigram = findTrigramByLines(upperLines);
-  const lowerTrigram = findTrigramByLines(lowerLines);
-
-  return {
-    name: getGuaName(upperTrigram, lowerTrigram),
-    lines: yaoLines,
-    changes: yaoChanges,
-    trigrams: {
-      upper: upperTrigram,
-      lower: lowerTrigram
-    }
-  };
+  assertYaoLines(lines);
+  assertYaoChanges(changes);
+  return createGuaFromLines([...lines] as YaoLines, [...changes] as YaoChanges);
 }
 
 function getTrigramLines(trigramName: string): [YaoType, YaoType, YaoType] {
-  const rawLines = TRIGRAMS[trigramName]?.lines || TRIGRAMS['乾'].lines;
+  const rawLines = TRIGRAMS[trigramName]?.lines;
+  if (!rawLines) {
+    throw new RangeError(`未知八卦：${trigramName}`);
+  }
   return [...rawLines].reverse() as [YaoType, YaoType, YaoType];
 }
 
@@ -228,44 +234,41 @@ function composeLinesFromTrigrams(
 
 // 创建卦象
 function createGua(upperIndex: number, lowerIndex: number, changeIndex: number): Gua {
-  const trigramNames = Object.keys(TRIGRAMS);
-  const upperTrigram = trigramNames[upperIndex];
-  const lowerTrigram = trigramNames[lowerIndex];
+  const upperTrigram = TRIGRAM_ORDER[upperIndex];
+  const lowerTrigram = TRIGRAM_ORDER[lowerIndex];
+
+  if (!upperTrigram || !lowerTrigram || changeIndex < 0 || changeIndex >= LINE_COUNT) {
+    throw new RangeError('起卦索引超出范围');
+  }
 
   const lines = composeLinesFromTrigrams(upperTrigram, lowerTrigram);
-  const changes = [false, false, false, false, false, false] as [boolean, boolean, boolean, boolean, boolean, boolean];
+  const changes = [false, false, false, false, false, false] as YaoChanges;
   changes[changeIndex] = true;
 
-  return {
-    name: getGuaName(upperTrigram, lowerTrigram),
-    lines,
-    changes,
-    trigrams: {
-      upper: upperTrigram,
-      lower: lowerTrigram
-    }
-  };
+  return createGuaFromLines(lines, changes);
 }
 
 // 根据爻象查找卦名
 function findTrigramByLines(lines: number[]): string {
-  for (const [name] of Object.entries(TRIGRAMS)) {
-    if (JSON.stringify(getTrigramLines(name)) === JSON.stringify(lines)) {
-      return name;
-    }
+  if (lines.length !== 3 || lines.some(line => line !== 0 && line !== 1)) {
+    throw new RangeError('三爻卦必须由3个0或1组成');
   }
-  return '乾';
+
+  const trigram = TRIGRAM_ORDER.find(name => getTrigramLines(name).every((line, index) => line === lines[index]));
+  if (!trigram) {
+    throw new RangeError(`无法识别三爻组合：${lines.join('')}`);
+  }
+  return trigram;
 }
 
-function rebuildGuaFromLines(gua: Gua): Gua {
-  const upperLines = Array.from(gua.lines.slice(3, 6));
-  const lowerLines = Array.from(gua.lines.slice(0, 3));
-  const upperTrigram = findTrigramByLines(upperLines);
-  const lowerTrigram = findTrigramByLines(lowerLines);
+function createGuaFromLines(lines: YaoLines, changes: YaoChanges): Gua {
+  const upperTrigram = findTrigramByLines(lines.slice(3, 6));
+  const lowerTrigram = findTrigramByLines(lines.slice(0, 3));
 
   return {
-    ...gua,
     name: getGuaName(upperTrigram, lowerTrigram),
+    lines: [...lines] as YaoLines,
+    changes: [...changes] as YaoChanges,
     trigrams: {
       upper: upperTrigram,
       lower: lowerTrigram
@@ -273,14 +276,16 @@ function rebuildGuaFromLines(gua: Gua): Gua {
   };
 }
 
+function rebuildGuaFromLines(gua: Gua): Gua {
+  assertYaoLines(gua.lines);
+  assertYaoChanges(gua.changes);
+  return createGuaFromLines(gua.lines, gua.changes);
+}
+
 function rebuildGuaFromTrigrams(gua: Gua): Gua {
   const { upper, lower } = gua.trigrams;
-
-  return {
-    ...gua,
-    name: getGuaName(upper, lower),
-    lines: composeLinesFromTrigrams(upper, lower)
-  };
+  assertYaoChanges(gua.changes);
+  return createGuaFromLines(composeLinesFromTrigrams(upper, lower), gua.changes);
 }
 
 export function normalizeGuaByMethod(gua: Gua | null, method?: string): Gua | null {
@@ -297,14 +302,18 @@ export function normalizeGuaByMethod(gua: Gua | null, method?: string): Gua | nu
 
 // 获取卦名
 function getGuaName(upperTrigram: string, lowerTrigram: string): string {
-  const trigramNames = Object.keys(TRIGRAMS);
-  const upperIndex = trigramNames.indexOf(upperTrigram);
-  const lowerIndex = trigramNames.indexOf(lowerTrigram);
+  const upperIndex = TRIGRAM_ORDER.indexOf(upperTrigram as typeof TRIGRAM_ORDER[number]);
+  const lowerIndex = TRIGRAM_ORDER.indexOf(lowerTrigram as typeof TRIGRAM_ORDER[number]);
+  if (upperIndex === -1 || lowerIndex === -1) {
+    throw new RangeError(`无法识别上下卦：${upperTrigram}/${lowerTrigram}`);
+  }
   return GUA_NAMES[upperIndex][lowerIndex];
 }
 
 // 生成变卦
 export function generateBianGua(benGua: Gua): Gua | null {
+  assertYaoLines(benGua.lines);
+  assertYaoChanges(benGua.changes);
   const hasChanges = benGua.changes.some(c => c);
   if (!hasChanges) return null;
 
@@ -315,21 +324,7 @@ export function generateBianGua(benGua: Gua): Gua | null {
     return line;
   }) as [YaoType, YaoType, YaoType, YaoType, YaoType, YaoType];
 
-  const upperLines = newLines.slice(3, 6);
-  const lowerLines = newLines.slice(0, 3);
-
-  const upperTrigram = findTrigramByLines(Array.from(upperLines));
-  const lowerTrigram = findTrigramByLines(Array.from(lowerLines));
-
-  return {
-    name: getGuaName(upperTrigram, lowerTrigram),
-    lines: newLines,
-    changes: [false, false, false, false, false, false],
-    trigrams: {
-      upper: upperTrigram,
-      lower: lowerTrigram
-    }
-  };
+  return createGuaFromLines(newLines, [false, false, false, false, false, false]);
 }
 
 /**
@@ -439,8 +434,8 @@ function detectYaoRelations(earthBranches: string[], sixRelatives: string[]): Ya
       const branch2 = earthBranches[j];
 
       if (LIU_HE[branch1] === branch2) {
-        const yaoName1 = ['初爻', '二爻', '三爻', '四爻', '五爻', '上爻'][i];
-        const yaoName2 = ['初爻', '二爻', '三爻', '四爻', '五爻', '上爻'][j];
+        const yaoName1 = YAO_NAMES[i];
+        const yaoName2 = YAO_NAMES[j];
         const relative1 = sixRelatives[i];
         const relative2 = sixRelatives[j];
 
@@ -463,8 +458,8 @@ function detectYaoRelations(earthBranches: string[], sixRelatives: string[]): Ya
       const branch2 = earthBranches[j];
 
       if (LIU_CHONG[branch1] === branch2) {
-        const yaoName1 = ['初爻', '二爻', '三爻', '四爻', '五爻', '上爻'][i];
-        const yaoName2 = ['初爻', '二爻', '三爻', '四爻', '五爻', '上爻'][j];
+        const yaoName1 = YAO_NAMES[i];
+        const yaoName2 = YAO_NAMES[j];
         const relative1 = sixRelatives[i];
         const relative2 = sixRelatives[j];
 
@@ -492,7 +487,7 @@ function detectYaoRelations(earthBranches: string[], sixRelatives: string[]): Ya
   }
 
   // 检查每个三合局
-  for (const [juName, juInfo] of Object.entries(SAN_HE)) {
+  for (const juInfo of Object.values(SAN_HE)) {
     const { branches: juBranches, element } = juInfo;
 
     // 检查三个地支是否都存在
@@ -508,10 +503,10 @@ function detectYaoRelations(earthBranches: string[], sixRelatives: string[]): Ya
 
     // 三个地支都存在，成三合局
     if (foundBranches.length === 3) {
-      const yaoNames = foundPositions.map(pos => ['初爻', '二爻', '三爻', '四爻', '五爻', '上爻'][pos]);
+      const yaoNames = foundPositions.map(pos => YAO_NAMES[pos]);
       const relatives = foundPositions.map(pos => sixRelatives[pos]);
 
-      const desc = foundPositions.map((pos, idx) =>
+      const desc = foundPositions.map((_, idx) =>
         `${yaoNames[idx]}${foundBranches[idx]}（${relatives[idx]}）`
       ).join('、');
 
@@ -616,7 +611,7 @@ function detectFuShens(
         canComeOut = true; // 比和，伏神有力
       }
 
-      const yaoName = ['初爻', '二爻', '三爻', '四爻', '五爻', '上爻'][fuPosition];
+      const yaoName = YAO_NAMES[fuPosition];
 
       fuShens.push({
         sixRelative: missingRel,
@@ -657,66 +652,45 @@ function analyzeChange(
   let description = '';
   let isGood = false;
 
-  // 1. 判断化进化退
-  const originalGrowth = TWELVE_GROWTH[originalElement]?.[originalBranch];
-  const changedGrowth = TWELVE_GROWTH[originalElement]?.[changedBranch];
-
-  if (originalGrowth && changedGrowth) {
-    // 长生1 -> 帝旺5 为进
-    // 帝旺5 -> 长生1 为退
-    if (changedGrowth > originalGrowth && changedGrowth <= 5) {
-      changeType = '化进';
-      description = `${originalBranch}化${changedBranch}，由${getGrowthName(originalGrowth)}化为${getGrowthName(changedGrowth)}，为化进神，主事态向好发展`;
-      isGood = true;
-    } else if (changedGrowth < originalGrowth && originalGrowth <= 5) {
-      changeType = '化退';
-      description = `${originalBranch}化${changedBranch}，由${getGrowthName(originalGrowth)}化为${getGrowthName(changedGrowth)}，为化退神，主力量减弱`;
-      isGood = false;
-    }
-  }
-
-  // 2. 判断六合
+  // 1. 判断六合
   if (LIU_HE[originalBranch] === changedBranch) {
     changeType = '化合';
     description = `${originalBranch}化${changedBranch}，六合成化，主和合、缠绵难分`;
     isGood = true;
   }
 
-  // 3. 判断六冲
-  if (LIU_CHONG[originalBranch] === changedBranch) {
+  // 2. 判断六冲（冲比合优先，避免被其他关系覆盖）
+  else if (LIU_CHONG[originalBranch] === changedBranch) {
     changeType = '化回头冲';
     description = `${originalBranch}化${changedBranch}，变爻冲原爻（六冲），主散、破、不稳`;
     isGood = false;
   }
 
-  // 4. 判断回头生克
-  if (changeType === '无特殊' || changeType === '化进' || changeType === '化退') {
-    // 变爻生原爻
-    if (FIVE_ELEMENTS_RELATION.generates[changedElement as keyof typeof FIVE_ELEMENTS_RELATION.generates] === originalElement) {
-      if (changeType === '无特殊') {
-        changeType = '化回头生';
-      }
-      description = `${originalBranch}${originalElement}化${changedBranch}${changedElement}，变爻生原爻，锦上添花，得助有力`;
-      isGood = true;
-    }
-    // 变爻克原爻
-    else if (FIVE_ELEMENTS_RELATION.controls[changedElement as keyof typeof FIVE_ELEMENTS_RELATION.controls] === originalElement) {
-      if (changeType === '无特殊') {
-        changeType = '化回头克';
-      }
-      description = `${originalBranch}${originalElement}化${changedBranch}${changedElement}，变爻克原爻，事成反败，反受其害`;
-      isGood = false;
-    }
-    // 原爻生变爻（化泄）
-    else if (FIVE_ELEMENTS_RELATION.generates[originalElement as keyof typeof FIVE_ELEMENTS_RELATION.generates] === changedElement) {
-      if (changeType === '无特殊') {
-        changeType = '化泄';
-      }
-      description += description ? `；原爻生变爻，力量被泄` : `${originalBranch}${originalElement}化${changedBranch}${changedElement}，原爻生变爻，力量被泄`;
-      if (isGood === false) {
-        isGood = false;
-      }
-    }
+  // 3. 判断回头生克
+  else if (FIVE_ELEMENTS_RELATION.generates[changedElement as keyof typeof FIVE_ELEMENTS_RELATION.generates] === originalElement) {
+    changeType = '化回头生';
+    description = `${originalBranch}${originalElement}化${changedBranch}${changedElement}，变爻生原爻，锦上添花，得助有力`;
+    isGood = true;
+  } else if (FIVE_ELEMENTS_RELATION.controls[changedElement as keyof typeof FIVE_ELEMENTS_RELATION.controls] === originalElement) {
+    changeType = '化回头克';
+    description = `${originalBranch}${originalElement}化${changedBranch}${changedElement}，变爻克原爻，事成反败，反受其害`;
+    isGood = false;
+  }
+  // 4. 进退神是六爻固定地支配对，不是十二长生序号的任意升降。
+  else if (ADVANCING_BRANCHES[originalBranch] === changedBranch) {
+    changeType = '化进';
+    description = `${originalBranch}化${changedBranch}，为化进神，主力量增长、事态推进`;
+    isGood = true;
+  } else if (RETREATING_BRANCHES[originalBranch] === changedBranch) {
+    changeType = '化退';
+    description = `${originalBranch}化${changedBranch}，为化退神，主力量减弱、事态退却`;
+    isGood = false;
+  }
+  // 5. 原爻生变爻（化泄）
+  else if (FIVE_ELEMENTS_RELATION.generates[originalElement as keyof typeof FIVE_ELEMENTS_RELATION.generates] === changedElement) {
+    changeType = '化泄';
+    description = `${originalBranch}${originalElement}化${changedBranch}${changedElement}，原爻生变爻，力量被泄`;
+    isGood = false;
   }
 
   // 如果没有特殊变化，给出默认描述
@@ -737,14 +711,6 @@ function analyzeChange(
 }
 
 /**
- * 获取十二长生阶段名称
- */
-function getGrowthName(stage: number): string {
-  const names = ['', '长生', '沐浴', '冠带', '临官', '帝旺', '衰', '病', '死', '墓', '绝', '胎', '养'];
-  return names[stage] || '';
-}
-
-/**
  * 推断应期（事情应验的时间）
  * 根据《增删卜易》《卜筮正宗》的应期理论
  *
@@ -759,9 +725,7 @@ function calculateYingQi(
   gua: Gua,
   earthBranches: string[],
   changeAnalyses: ChangeAnalysis[],
-  kongWangYao: number[],
-  monthBranch: string,
-  dayGanZhi: string
+  kongWangYao: number[]
 ): YingQi[] {
   const yingQiList: YingQi[] = [];
 
@@ -794,11 +758,6 @@ function calculateYingQi(
   if (kongWangYao.length > 0) {
     const kongWangBranches = kongWangYao.map(pos => earthBranches[pos]);
     const uniqueKongWangBranches = Array.from(new Set(kongWangBranches));
-
-    // 计算出空时间（下一旬）
-    const dayZhi = dayGanZhi.substring(1); // 提取地支
-    const zhiList = TWELVE_BRANCHES;
-    const currentIndex = zhiList.indexOf(dayZhi);
 
     // 空亡爻出空后才能应验
     yingQiList.push({
@@ -889,54 +848,55 @@ function calculateYingQi(
  * 获取与指定地支相冲的地支
  */
 function getChongBranch(branch: string): string {
-  const chongMap: { [key: string]: string } = {
-    '子': '午', '午': '子',
-    '丑': '未', '未': '丑',
-    '寅': '申', '申': '寅',
-    '卯': '酉', '酉': '卯',
-    '辰': '戌', '戌': '辰',
-    '巳': '亥', '亥': '巳'
-  };
-  return chongMap[branch] || '';
+  return LIU_CHONG[branch] || '';
 }
 
 /**
  * 获取与指定地支相合的地支
  */
 function getHeBranch(branch: string): string {
-  const heMap: { [key: string]: string } = {
-    '子': '丑', '丑': '子',
-    '寅': '亥', '亥': '寅',
-    '卯': '戌', '戌': '卯',
-    '辰': '酉', '酉': '辰',
-    '巳': '申', '申': '巳',
-    '午': '未', '未': '午'
+  return LIU_HE[branch] || '';
+}
+
+function getNaJiaLayout(upperTrigram: string, lowerTrigram: string): {
+  earthBranches: string[];
+  heavenlyStems: string[];
+} {
+  const lowerBranches = EARTH_BRANCHES[lowerTrigram];
+  const upperBranches = EARTH_BRANCHES[upperTrigram];
+  const lowerStems = NAJIA[lowerTrigram];
+  const upperStems = NAJIA[upperTrigram];
+
+  if (!lowerBranches || !upperBranches || !lowerStems || !upperStems) {
+    throw new RangeError(`无法为上下卦装纳甲：${upperTrigram}/${lowerTrigram}`);
+  }
+
+  return {
+    earthBranches: [
+      lowerBranches[0], lowerBranches[1], lowerBranches[2],
+      upperBranches[3], upperBranches[4], upperBranches[5]
+    ],
+    heavenlyStems: [
+      lowerStems[0], lowerStems[1], lowerStems[2],
+      upperStems[3], upperStems[4], upperStems[5]
+    ]
   };
-  return heMap[branch] || '';
 }
 
 // 装卦（装纳甲、地支、五行、六亲、六神、世应）
 export function decorateGua(gua: Gua, date: Date): GuaDecoration {
+  assertValidDate(date);
+  assertYaoLines(gua.lines);
+  assertYaoChanges(gua.changes);
+  // 以爻象为唯一事实源，避免外部传入的卦名、上下卦与六爻不一致。
+  gua = createGuaFromLines(gua.lines, gua.changes);
+
   // 获取上卦和下卦
   const upperTrigram = gua.trigrams.upper;
   const lowerTrigram = gua.trigrams.lower;
 
   // 装地支和天干：下三爻用下卦的配置，上三爻用上卦的配置
-  const lowerBranches = EARTH_BRANCHES[lowerTrigram] || EARTH_BRANCHES['乾'];
-  const upperBranches = EARTH_BRANCHES[upperTrigram] || EARTH_BRANCHES['乾'];
-  const lowerStems = NAJIA[lowerTrigram] || NAJIA['乾'];
-  const upperStems = NAJIA[upperTrigram] || NAJIA['乾'];
-
-  // 组合：初二三爻用下卦，四五上爻用上卦
-  const earthBranches = [
-    lowerBranches[0], lowerBranches[1], lowerBranches[2],  // 初二三爻
-    upperBranches[3], upperBranches[4], upperBranches[5]   // 四五上爻
-  ];
-
-  const heavenlyStems = [
-    lowerStems[0], lowerStems[1], lowerStems[2],  // 初二三爻
-    upperStems[3], upperStems[4], upperStems[5]   // 四五上爻
-  ];
+  const { earthBranches, heavenlyStems } = getNaJiaLayout(upperTrigram, lowerTrigram);
 
   // 确定卦宫（用于六亲）- 使用八宫归属表
   const guaName = gua.name;
@@ -955,8 +915,10 @@ export function decorateGua(gua: Gua, date: Date): GuaDecoration {
   // 装六神（根据日期天干）
   const lunar = Lunar.fromDate(date);
   const dayGan = lunar.getDayGan();
-  const dayGanIndex = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'].indexOf(dayGan);
-  const sixSpiritsStart = dayGanIndex % 6;
+  const sixSpiritsStart = SIX_SPIRIT_START_BY_DAY_STEM[dayGan];
+  if (sixSpiritsStart === undefined) {
+    throw new RangeError(`无法根据日干起六神：${dayGan}`);
+  }
   const sixSpirits = [];
   for (let i = 0; i < 6; i++) {
     sixSpirits.push(SIX_SPIRITS[(sixSpiritsStart + i) % 6]);
@@ -968,8 +930,9 @@ export function decorateGua(gua: Gua, date: Date): GuaDecoration {
   // ========== 计算月建、日辰、空亡 ==========
 
   // 获取月建
-  const monthBranch = lunar.getMonthZhi();  // 月建地支
-  const monthGanZhi = lunar.getMonthInGanZhi();  // 月建干支
+  // 月建以节气交节时刻为界，不以农历初一换月。
+  const monthBranch = lunar.getMonthZhiExact();
+  const monthGanZhi = lunar.getMonthInGanZhiExact();
 
   // 获取日辰
   const dayGanZhi = lunar.getDayInGanZhi();  // 日辰干支
@@ -1008,35 +971,25 @@ export function decorateGua(gua: Gua, date: Date): GuaDecoration {
 
   // ========== 分析动爻化进化退 ==========
   const changeAnalyses: ChangeAnalysis[] = [];
+  const bianGua = generateBianGua(gua);
+  const bianGuaBranches = bianGua
+    ? getNaJiaLayout(bianGua.trigrams.upper, bianGua.trigrams.lower).earthBranches
+    : null;
 
   // 只有动爻才需要分析变化
   for (let i = 0; i < 6; i++) {
-    if (gua.changes[i]) {
+    if (gua.changes[i] && bianGuaBranches) {
       // 原爻信息
       const originalBranch = earthBranches[i];
       const originalElement = fiveElements[i];
 
-      // 变爻信息：动爻变为相反的阴阳
-      // 需要找到变卦对应位置的地支和五行
-      const bianGua = generateBianGua(gua);
-      if (bianGua) {
-        // 重新装变卦，获取变爻的地支
-        const bianGuaUpperTrigram = bianGua.trigrams.upper;
-        const bianGuaLowerTrigram = bianGua.trigrams.lower;
-        const bianGuaLowerBranches = EARTH_BRANCHES[bianGuaLowerTrigram] || EARTH_BRANCHES['乾'];
-        const bianGuaUpperBranches = EARTH_BRANCHES[bianGuaUpperTrigram] || EARTH_BRANCHES['乾'];
-        const bianGuaEarthBranches = [
-          bianGuaLowerBranches[0], bianGuaLowerBranches[1], bianGuaLowerBranches[2],
-          bianGuaUpperBranches[3], bianGuaUpperBranches[4], bianGuaUpperBranches[5]
-        ];
-
-        const changedBranch = bianGuaEarthBranches[i];
-        const changedElement = FIVE_ELEMENTS[changedBranch] || '水';
-
-        // 分析化爻
-        const analysis = analyzeChange(i, originalBranch, changedBranch, originalElement, changedElement);
-        changeAnalyses.push(analysis);
+      const changedBranch = bianGuaBranches[i];
+      const changedElement = FIVE_ELEMENTS[changedBranch];
+      if (!changedElement) {
+        throw new RangeError(`未知变爻地支：${changedBranch}`);
       }
+
+      changeAnalyses.push(analyzeChange(i, originalBranch, changedBranch, originalElement, changedElement));
     }
   }
 
@@ -1051,9 +1004,7 @@ export function decorateGua(gua: Gua, date: Date): GuaDecoration {
     gua,
     earthBranches,
     changeAnalyses,
-    kongWangYao,
-    monthBranch,
-    dayGanZhi
+    kongWangYao
   );
 
   return {

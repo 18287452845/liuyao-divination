@@ -91,10 +91,17 @@ const DivinationPage: React.FC = () => {
           return;
         }
 
+        const numbers = [num1, num2, num3].map(Number);
+        if (numbers.some(value => !Number.isSafeInteger(value) || value <= 0)) {
+          toast.warning('请输入三个正整数');
+          setLoading(false);
+          return;
+        }
+
         data = {
-          num1: parseInt(num1, 10),
-          num2: parseInt(num2, 10),
-          num3: parseInt(num3, 10),
+          num1: numbers[0],
+          num2: numbers[1],
+          num3: numbers[2],
         };
       } else if (method === 'manual') {
         if (yaoResults.length !== 6) {
@@ -323,7 +330,7 @@ const DivinationPage: React.FC = () => {
                   type="number"
                   value={num1}
                   onChange={(e) => setNum1(e.target.value)}
-                  placeholder="第一个数字"
+                  placeholder="上卦数"
                   className="p-3 border-2 border-gray-300 rounded-lg focus:border-primary focus:outline-none"
                   min="1"
                 />
@@ -331,7 +338,7 @@ const DivinationPage: React.FC = () => {
                   type="number"
                   value={num2}
                   onChange={(e) => setNum2(e.target.value)}
-                  placeholder="第二个数字"
+                  placeholder="下卦数"
                   className="p-3 border-2 border-gray-300 rounded-lg focus:border-primary focus:outline-none"
                   min="1"
                 />
@@ -339,7 +346,7 @@ const DivinationPage: React.FC = () => {
                   type="number"
                   value={num3}
                   onChange={(e) => setNum3(e.target.value)}
-                  placeholder="第三个数字"
+                  placeholder="动爻数"
                   className="p-3 border-2 border-gray-300 rounded-lg focus:border-primary focus:outline-none"
                   min="1"
                 />

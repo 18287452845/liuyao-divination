@@ -511,8 +511,7 @@ export function getShiYingPositions(guaName: string): [number, number] {
   if (info) {
     return [info.worldYao, info.responseYao];
   }
-  // 默认返回本宫卦的世应
-  return [5, 2];
+  throw new RangeError(`六十四卦归宫表中不存在：${guaName}`);
 }
 
 /**
@@ -525,6 +524,5 @@ export function getGuaPalace(guaName: string): string {
   if (info) {
     return info.palace;
   }
-  // 默认返回乾宫
-  return '乾宫';
+  throw new RangeError(`六十四卦归宫表中不存在：${guaName}`);
 }

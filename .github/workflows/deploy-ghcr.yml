@@ -2,74 +2,107 @@ name: Deploy from GHCR
 
 on:
   workflow_run:
-    workflows: ["Build and Push to GHCR"]
+    workflows: ['Build and Push to GHCR']
     types:
       - completed
     branches:
       - main
-      - develop
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Deployment environment'
+        description: Deployment environment
         required: true
-        default: 'staging'
+        default: production
         type: choice
         options:
           - staging
           - production
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
 
 jobs:
-  deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+  preflight:
     runs-on: ubuntu-latest
-    
+    outputs:
+      configured: ${{ steps.config.outputs.configured }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Deploy to server
+      - name: Check deployment configuration
+        id: config
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || 22 }}
+        run: |
+          if [ -n "$DEPLOY_HOST" ] && [ -n "$DEPLOY_USER" ] && [ -n "$DEPLOY_KEY" ]; then
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::Server deployment skipped: DEPLOY_HOST, DEPLOY_USER, and DEPLOY_KEY are not configured.'
+          fi
+
+  deploy:
+    needs: preflight
+    if: >-
+      needs.preflight.outputs.configured == 'true' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Deploy client container
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
           REGISTRY_USERNAME: ${{ github.actor }}
           REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ env.DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p ${{ env.DEPLOY_PORT }} ${{ env.DEPLOY_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
-          
-          # Deploy script
-          ssh -i ~/.ssh/deploy_key -p ${{ env.DEPLOY_PORT }} ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
-          set -e
-          
-          cd /opt/liuyao-app || mkdir -p /opt/liuyao-app && cd /opt/liuyao-app
-          
-          # Pull latest code
-          git pull origin main || git clone ${{ github.server_url }}/${{ github.repository }}.git .
-          
-          # Login to GHCR
-          echo "${{ env.REGISTRY_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u ${{ env.REGISTRY_USERNAME }} --password-stdin
-          
-          # Pull and start services
-          docker-compose pull
-          docker-compose up -d
-          
-          # Cleanup
-          docker system prune -f
-          docker logout ${{ env.REGISTRY }}
-          EOF
-        continue-on-error: true
+          ssh-keyscan -H -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
-      - name: Verify deployment
-        if: success()
-        run: |
-          echo "Deployment triggered successfully"
-          echo "Check your deployment server for status"
+          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" << 'EOF'
+          set -euo pipefail
+
+          APP_DIR=/opt/liuyao-app
+          if [ -d "$APP_DIR/.git" ]; then
+            cd "$APP_DIR"
+            git checkout main
+            git pull --ff-only origin main
+          else
+            mkdir -p "$APP_DIR"
+            git clone https://github.com/${{ github.repository }}.git "$APP_DIR"
+            cd "$APP_DIR"
+          fi
+
+          echo '${{ env.REGISTRY_PASSWORD }}' | docker login ghcr.io -u '${{ env.REGISTRY_USERNAME }}' --password-stdin
+          export GHCR_REPO='${{ github.repository }}'
+          export IMAGE_TAG=latest
+
+          docker compose -f docker-compose.ghcr.yml pull client
+          docker compose -f docker-compose.ghcr.yml up -d --remove-orphans client
+
+          for attempt in $(seq 1 12); do
+            status=$(docker inspect --format='{{.State.Health.Status}}' liuyao-client 2>/dev/null || true)
+            if [ "$status" = healthy ]; then
+              docker image prune -f
+              docker logout ghcr.io
+              exit 0
+            fi
+            sleep 5
+          done
+
+          docker compose -f docker-compose.ghcr.yml logs --tail=100 client
+          exit 1
+          EOF
