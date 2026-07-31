@@ -23,7 +23,8 @@ function getResponseErrorMessage(errorText: string, fallback: string) {
 
   try {
     const parsed = JSON.parse(errorText);
-    return normalizeLegacyText(parsed?.message || parsed?.error || fallback);
+    const message = parsed?.message || parsed?.error?.message || parsed?.error;
+    return normalizeLegacyText(typeof message === 'string' ? message : fallback);
   } catch {
     return normalizeLegacyText(errorText);
   }
@@ -333,174 +334,152 @@ export const divinationApi = {
   },
 };
 
+interface AiStreamOptions {
+  signal?: AbortSignal;
+}
+
+async function streamGuaAi(
+  payload: Record<string, unknown>,
+  onChunk: (content: string) => void,
+  onError: (error: string) => void,
+  onComplete?: () => void,
+  options: AiStreamOptions = {}
+) {
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      throw new Error('未登录');
+    }
+
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-ai`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ ...payload, requestTimestamp: Date.now() }),
+      signal: options.signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(getResponseErrorMessage(errorText, `AI 请求失败 (${response.status})`));
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('无法读取流式响应');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let hasContent = false;
+    let finished = false;
+
+    const consumeLine = (rawLine: string) => {
+      const line = rawLine.trim();
+      if (!line.startsWith('data:')) return;
+
+      const eventData = line.slice(5).trimStart();
+      if (eventData === '[DONE]') {
+        finished = true;
+        return;
+      }
+
+      let parsed: { content?: string; error?: string };
+      try {
+        parsed = JSON.parse(eventData);
+      } catch {
+        return;
+      }
+
+      if (parsed.error) {
+        throw new Error(normalizeLegacyText(parsed.error));
+      }
+
+      if (parsed.content) {
+        hasContent = true;
+        onChunk(parsed.content);
+      }
+    };
+
+    try {
+      while (!finished) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          consumeLine(line);
+          if (finished) break;
+        }
+      }
+
+      buffer += decoder.decode();
+      if (!finished && buffer.trim()) {
+        consumeLine(buffer);
+      }
+    } finally {
+      await reader.cancel().catch(() => undefined);
+      reader.releaseLock();
+    }
+
+    if (!hasContent) {
+      throw new Error('AI 未返回有效内容，请稍后重试');
+    }
+
+    onComplete?.();
+  } catch (error: any) {
+    if (options.signal?.aborted || error?.name === 'AbortError') {
+      return;
+    }
+    onError(normalizeLegacyText(error?.message || 'AI 请求失败'));
+  }
+}
+
 export const analyzeGuaStream = async (
   data: any,
   onChunk: (content: string) => void,
   onError: (error: string) => void,
   onComplete?: () => void
-) => {
-  let hasContent = false;
-
-  try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session?.access_token) {
-      throw new Error('未登录');
-    }
-
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-ai`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({ type: 'gua', mode: 'analysis', data, requestTimestamp: Date.now() }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(getResponseErrorMessage(errorText, `解卦请求失败 (${response.status})`));
-    }
-
-    const reader = response.body?.getReader();
-    const decoder = new TextDecoder();
-
-    if (!reader) {
-      throw new Error('无法读取流式响应');
-    }
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value);
-      const lines = chunk.split('\n').filter((line) => line.trim() !== '');
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) {
-          continue;
-        }
-
-        const payload = line.slice(6);
-        if (payload === '[DONE]') {
-          if (hasContent && onComplete) {
-            onComplete();
-          }
-          return;
-        }
-
-        try {
-          const parsed = JSON.parse(payload);
-          if (parsed.content) {
-            hasContent = true;
-            onChunk(parsed.content);
-          } else if (parsed.error) {
-            onError(normalizeLegacyText(parsed.error));
-            return;
-          }
-        } catch {
-          // Ignore malformed SSE chunks from upstream.
-        }
-      }
-    }
-
-    if (hasContent && onComplete) {
-      onComplete();
-    }
-  } catch (error: any) {
-    onError(normalizeLegacyText(error.message || '解卦失败'));
-  }
-};
+) => streamGuaAi(
+  { type: 'gua', mode: 'analysis', data },
+  onChunk,
+  onError,
+  onComplete
+);
 
 export const chatGuaStream = async (
   data: {
+    recordId: string;
     question: string;
     analysis: string;
     messages: AiChatMessage[];
-    context: any;
   },
   onChunk: (content: string) => void,
   onError: (error: string) => void,
-  onComplete?: () => void
-) => {
-  let hasContent = false;
-
-  try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session?.access_token) {
-      throw new Error('未登录');
-    }
-
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-ai`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({
-        type: 'gua',
-        mode: 'chat',
-        question: data.question,
-        analysis: data.analysis,
-        messages: data.messages,
-        data: data.context,
-        requestTimestamp: Date.now(),
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(getResponseErrorMessage(errorText, `AI 追问请求失败 (${response.status})`));
-    }
-
-    const reader = response.body?.getReader();
-    const decoder = new TextDecoder();
-
-    if (!reader) {
-      throw new Error('无法读取流式响应');
-    }
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value);
-      const lines = chunk.split('\n').filter((line) => line.trim() !== '');
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-
-        const payload = line.slice(6);
-        if (payload === '[DONE]') {
-          if (hasContent && onComplete) onComplete();
-          return;
-        }
-
-        try {
-          const parsed = JSON.parse(payload);
-          if (parsed.content) {
-            hasContent = true;
-            onChunk(parsed.content);
-          } else if (parsed.error) {
-            onError(normalizeLegacyText(parsed.error));
-            return;
-          }
-        } catch {
-          // Ignore malformed SSE chunks from upstream.
-        }
-      }
-    }
-
-    if (hasContent && onComplete) onComplete();
-  } catch (error: any) {
-    onError(normalizeLegacyText(error.message || 'AI 追问失败'));
-  }
-};
+  onComplete?: () => void,
+  options?: AiStreamOptions
+) => streamGuaAi(
+  {
+    type: 'gua',
+    mode: 'chat',
+    recordId: data.recordId,
+    question: data.question,
+    analysis: data.analysis,
+    messages: data.messages,
+  },
+  onChunk,
+  onError,
+  onComplete,
+  options
+);
 
 function calculateKongWang(dayGanZhi: string): [string, string] {
   for (const [xunStart, kongWang] of Object.entries(KONG_WANG_MAP)) {

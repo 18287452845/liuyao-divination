@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
+    "test": "npm run build && node --test tests/liuyao.test.js && npm run test:ai-chat",
+    "test:ai-chat": "tsx --test tests/analyze-ai-chat.test.ts",
     "start": "node dist/index.js"
   },
   "dependencies": {

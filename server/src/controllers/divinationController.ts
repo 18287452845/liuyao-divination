@@ -65,6 +65,7 @@ export const createDivination = async (req: Request, res: Response) => {
     if (!userId) return;
 
     const { method, question, gender, bazi, data, category } = req.body;
+    const methodData = data && typeof data === 'object' ? data : {};
     const timestamp = Date.now();
     const date = new Date(timestamp);
 
@@ -74,13 +75,13 @@ export const createDivination = async (req: Request, res: Response) => {
     if (method === 'time') {
       benGua = divinationByTime(date);
     } else if (method === 'number') {
-      const { num1, num2, num3 } = data;
+      const { num1, num2, num3 } = methodData;
       benGua = divinationByNumbers(num1, num2, num3);
     } else if (method === 'manual') {
-      const { yaoResults } = data;
+      const { yaoResults } = methodData;
       benGua = divinationByManual(yaoResults);
     } else if (method === 'input') {
-      const { lines, changes } = data;
+      const { lines, changes } = methodData;
       benGua = divinationByInput(lines, changes);
     } else {
       return res.status(400).json({ error: '不支持的起卦方法' });
@@ -129,6 +130,9 @@ export const createDivination = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('创建卦象错误:', error);
+    if (error instanceof RangeError) {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({ error: '创建卦象失败' });
   }
 };

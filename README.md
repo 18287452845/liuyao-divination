@@ -16,7 +16,7 @@
 
 - 六爻：时间起卦、数字起卦、手动摇卦、完整排盘、变卦、六亲、六神、世应、动爻、空亡等。
 - 八字：四柱计算、十神、五行、用神/忌神、大运推算、历史记录。
-- AI 分析：六爻解卦和八字批注，支持用户个人 DeepSeek API Key，系统 fallback key 配置在 Supabase Edge Function secret 中。
+- AI 分析：六爻解卦和八字批注，六爻解卦后可基于同一卦例连续追问；支持用户个人 DeepSeek API Key，系统 fallback key 配置在 Supabase Edge Function secret 中。
 - 用户体系：Supabase Auth 登录/注册、密码修改、用户资料表同步。
 - 管理后台：用户、角色、权限、邀请码、登录日志、会话管理。
 - 数据隔离：通过 Supabase RLS 约束普通用户只能访问自己的记录，管理员可访问管理数据。
@@ -122,11 +122,13 @@ testuser / test123
 
 ```bash
 npm run build
+npm run test:liuyao
 ```
 
 当前验证状态：
 
 - 前端 TypeScript + Vite 构建通过。
+- 六爻算法和 AI 追问协议测试通过。
 - 运行代码中已移除旧 Express `/api`、`localhost:5000` 和后端 proxy 依赖。
 - Docker Compose 只部署前端容器。
 
