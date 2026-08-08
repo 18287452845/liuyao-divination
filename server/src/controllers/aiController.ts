@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import axios from 'axios';
 import { Lunar } from 'lunar-javascript';
 import { normalizeLegacyText } from '../utils/textNormalize';
+import { createAiOutputStreamFilter } from '../utils/aiOutputSanitizer';
 
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_API_BASE = (process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com').replace(/\/+$/, '');
@@ -144,6 +145,7 @@ export const analyzeGua = async (req: Request, res: Response) => {
 【禁止事项】
 - 禁止在回答末尾添加任何免责声明或AI署名
 - 禁止输出类似"以上内容由XX生成"、"仅供参考"等声明
+- 禁止添加与断卦无关的人生感悟或祝福性套话结语
 - 直接给出专业分析内容，无需说明内容来源
 - **严禁使用任何身份引言或开场白**，例如：
   - "好的，我将以精通《增删卜易》和《卜筮正宗》的六爻大师身份，为您详细解卦"
@@ -171,6 +173,20 @@ export const analyzeGua = async (req: Request, res: Response) => {
       }
     );
 
+    const outputFilter = createAiOutputStreamFilter();
+    let outputCompleted = false;
+
+    const completeOutput = () => {
+      if (outputCompleted) return;
+
+      const finalContent = outputFilter.flush();
+      if (finalContent) {
+        res.write(`data: ${JSON.stringify({ content: finalContent })}\n\n`);
+      }
+      res.write('data: [DONE]\n\n');
+      outputCompleted = true;
+    };
+
     // 转发流式响应
     response.data.on('data', (chunk: Buffer) => {
       const lines = chunk.toString().split('\n').filter(line => line.trim() !== '');
@@ -179,13 +195,16 @@ export const analyzeGua = async (req: Request, res: Response) => {
         if (line.startsWith('data: ')) {
           const data = line.slice(6);
           if (data === '[DONE]') {
-            res.write('data: [DONE]\n\n');
+            completeOutput();
           } else {
             try {
               const parsed = JSON.parse(data);
               const content = parsed.choices[0]?.delta?.content || '';
               if (content) {
-                res.write(`data: ${JSON.stringify({ content })}\n\n`);
+                const safeContent = outputFilter.push(content);
+                if (safeContent) {
+                  res.write(`data: ${JSON.stringify({ content: safeContent })}\n\n`);
+                }
               }
             } catch (e) {
               // 忽略解析错误
@@ -196,6 +215,7 @@ export const analyzeGua = async (req: Request, res: Response) => {
     });
 
     response.data.on('end', () => {
+      completeOutput();
       res.end();
     });
 

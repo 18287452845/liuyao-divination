@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { baziApi, analyzeBaziStream, chatBaziStream } from '../utils/baziApi';
+import { stripGeneratedDisclaimer } from '../utils/aiOutput';
 import AiChatPanel from '../components/AiChatPanel';
 import type { BaziRecord } from '../types/bazi';
 import type { AiChatMessage } from '../types/ai';
@@ -39,7 +40,7 @@ const BaziAiAnalysisPage: React.FC = () => {
       if (response.success && response.data) {
         setRecord(response.data);
         if (response.data.aiAnalysis) {
-          setAnalysis(response.data.aiAnalysis);
+          setAnalysis(stripGeneratedDisclaimer(response.data.aiAnalysis));
         }
       } else {
         throw new Error(response.message || '加载失败');

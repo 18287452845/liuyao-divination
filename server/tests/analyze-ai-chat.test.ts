@@ -5,7 +5,9 @@ import {
   buildGuaRecordContext,
   CHAT_HISTORY_MAX_MESSAGES,
   CHAT_QUESTION_MAX_LENGTH,
+  createAiOutputStreamFilter,
   sanitizeChatHistory,
+  stripGeneratedDisclaimer,
   validateAiRequest,
 } from '../supabase/functions/analyze-ai/prompt.ts';
 
@@ -93,4 +95,39 @@ test('服务端卦例数据兼容 jsonb 对象和历史 JSON 字符串', () => {
   assert.deepEqual(context.benGua, { name: '乾为天' });
   assert.deepEqual(context.bianGua, { name: '坤为地' });
   assert.deepEqual(context.decoration, { sixRelatives: ['父母'] });
+});
+
+test('解卦和八字输出会移除 DeepSeek 娱乐参考尾注', () => {
+  const analysis = '# 结论\n\n用神得日月生扶，事情可成。';
+  const disclaimer = '以上内容由DeepSeek生成，仅供娱乐参考。命理分析虽有趣，但现实生活才是我们真正需要关注和领域。';
+
+  assert.equal(stripGeneratedDisclaimer(`${analysis}\n\n---\n\n${disclaimer}`), analysis);
+  assert.equal(stripGeneratedDisclaimer('建议脚踏实地推进计划。'), '建议脚踏实地推进计划。');
+});
+
+test('流式输出在尾注被拆分为多个分片时仍会拦截', () => {
+  const filter = createAiOutputStreamFilter();
+  const chunks = [
+    '# 结论\n\n'.repeat(12),
+    '宜继续观察动爻变化。\n\n---\n\n以上内',
+    '容由DeepSeek生成，仅供娱乐参考。',
+    '愿你在人生的旅途中，脚踏实地。',
+  ];
+  const output = chunks.map((chunk) => filter.push(chunk)).join('') + filter.flush();
+
+  assert.match(output, /宜继续观察动爻变化/);
+  assert.doesNotMatch(output, /DeepSeek|娱乐参考|命理分析虽有趣/);
+});
+
+test('模型系统提示明确禁止署名、娱乐参考和祝福尾注', () => {
+  const messages = buildDeepSeekMessages({
+    type: 'bazi',
+    mode: 'analysis',
+    baziData: {},
+    dayunData: [],
+  });
+
+  assert.match(messages[0].content, /AI 署名/);
+  assert.match(messages[0].content, /娱乐参考声明/);
+  assert.match(messages[0].content, /祝福结语/);
 });

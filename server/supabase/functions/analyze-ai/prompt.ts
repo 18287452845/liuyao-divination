@@ -15,8 +15,76 @@ const CHAT_CONTEXT_MESSAGES = 8;
 const CHAT_MESSAGE_MAX_LENGTH = 4000;
 const ANALYSIS_MAX_LENGTH = 40000;
 
+const GENERATED_DISCLAIMER_MARKERS = [
+  '以上内容由',
+  '以上分析由',
+  '本内容由',
+  '本分析由',
+  '仅供娱乐参考',
+  '命理分析虽有趣',
+  '愿你在人生的旅途中',
+];
+
+const STREAM_OUTPUT_GUARD_LENGTH = 96;
+
 const SYSTEM_PROMPT =
-  '你只提供传统命理分析，不做绝对化承诺，不替代法律、医疗或投资建议。涉及时间时必须以用户消息中的北京时间为准；回答必须基于已验证的排盘数据。';
+  [
+    '你只提供传统命理分析，不做绝对化承诺，不替代法律、医疗或投资建议。',
+    '涉及时间时必须以用户消息中的北京时间为准；回答必须基于已验证的排盘数据。',
+    '回答结束于实质分析或具体建议，不得添加 AI 署名、内容来源、娱乐参考声明或套话式祝福结语。',
+  ].join('\n');
+
+function findGeneratedDisclaimerIndex(content: string) {
+  return GENERATED_DISCLAIMER_MARKERS.reduce((earliest, marker) => {
+    const index = content.indexOf(marker);
+    return index >= 0 && (earliest < 0 || index < earliest) ? index : earliest;
+  }, -1);
+}
+
+function cleanOutputPrefix(content: string) {
+  return content
+    .replace(/(?:\r?\n\s*(?:---|\*\*\*)\s*)+$/g, '')
+    .trimEnd();
+}
+
+export function stripGeneratedDisclaimer(content: string) {
+  const markerIndex = findGeneratedDisclaimerIndex(content);
+  return markerIndex < 0 ? content : cleanOutputPrefix(content.slice(0, markerIndex));
+}
+
+export function createAiOutputStreamFilter() {
+  let pending = '';
+  let blocked = false;
+
+  return {
+    push(content: string) {
+      if (blocked || !content) return '';
+
+      pending += content;
+      const markerIndex = findGeneratedDisclaimerIndex(pending);
+      if (markerIndex >= 0) {
+        blocked = true;
+        const safeContent = cleanOutputPrefix(pending.slice(0, markerIndex));
+        pending = '';
+        return safeContent;
+      }
+
+      if (pending.length <= STREAM_OUTPUT_GUARD_LENGTH) return '';
+
+      const splitIndex = pending.length - STREAM_OUTPUT_GUARD_LENGTH;
+      const safeContent = pending.slice(0, splitIndex);
+      pending = pending.slice(splitIndex);
+      return safeContent;
+    },
+    flush() {
+      if (blocked) return '';
+
+      const safeContent = stripGeneratedDisclaimer(pending);
+      pending = '';
+      return safeContent;
+    },
+  };
+}
 
 function formatChinaTime(value: unknown) {
   const date = typeof value === 'number' || typeof value === 'string'
@@ -90,8 +158,12 @@ export function sanitizeChatHistory(value: unknown): ChatMessage[] {
     .slice(-CHAT_CONTEXT_MESSAGES)
     .map((message) => ({
       role: message.role,
-      content: message.content.trim().slice(0, CHAT_MESSAGE_MAX_LENGTH),
-    }));
+      content: (message.role === 'assistant'
+        ? stripGeneratedDisclaimer(message.content)
+        : message.content
+      ).trim().slice(0, CHAT_MESSAGE_MAX_LENGTH),
+    }))
+    .filter((message) => message.content.length > 0);
 }
 
 export function validateAiRequest(body: any): string | null {
@@ -230,7 +302,9 @@ export function buildDeepSeekMessages(body: any): DeepSeekMessage[] {
     ];
   }
 
-  const analysis = body.analysis.trim().slice(0, ANALYSIS_MAX_LENGTH);
+  const analysis = stripGeneratedDisclaimer(body.analysis)
+    .trim()
+    .slice(0, ANALYSIS_MAX_LENGTH);
   const history = sanitizeChatHistory(body.messages);
 
   return [
