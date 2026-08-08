@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
   buildDeepSeekMessages,
   buildGuaRecordContext,
+  createAiOutputStreamFilter,
   validateAiRequest,
 } from './prompt.ts';
 
@@ -40,6 +41,16 @@ function proxyDeepSeekStream(upstreamBody: ReadableStream<Uint8Array>) {
   let buffer = '';
   let sentDone = false;
   const encoder = new TextEncoder();
+  const outputFilter = createAiOutputStreamFilter();
+
+  const enqueueContent = (
+    content: string,
+    controller: TransformStreamDefaultController<Uint8Array>,
+  ) => {
+    if (content) {
+      controller.enqueue(encoder.encode(sse({ content })));
+    }
+  };
 
   const forwardLine = (
     rawLine: string,
@@ -52,6 +63,7 @@ function proxyDeepSeekStream(upstreamBody: ReadableStream<Uint8Array>) {
 
     const payload = line.slice(5).trimStart();
     if (payload === '[DONE]') {
+      enqueueContent(outputFilter.flush(), controller);
       sentDone = true;
       controller.enqueue(encoder.encode('data: [DONE]\n\n'));
       return;
@@ -61,7 +73,7 @@ function proxyDeepSeekStream(upstreamBody: ReadableStream<Uint8Array>) {
       const parsed = JSON.parse(payload);
       const content = parsed.choices?.[0]?.delta?.content;
       if (content) {
-        controller.enqueue(encoder.encode(sse({ content })));
+        enqueueContent(outputFilter.push(content), controller);
       }
     } catch {
       // A malformed upstream event is ignored without discarding later events.
@@ -82,6 +94,7 @@ function proxyDeepSeekStream(upstreamBody: ReadableStream<Uint8Array>) {
           forwardLine(buffer, controller);
         }
         if (!sentDone) {
+          enqueueContent(outputFilter.flush(), controller);
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         }
       },

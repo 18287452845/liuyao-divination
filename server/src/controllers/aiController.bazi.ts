@@ -8,6 +8,10 @@ import axios from 'axios';
 import { queryOne, update } from '../models/database';
 import { BaZiDecoration, DaYunStep } from '../types/bazi';
 import { normalizeLegacyText } from '../utils/textNormalize';
+import {
+  createAiOutputStreamFilter,
+  stripGeneratedDisclaimer,
+} from '../utils/aiOutputSanitizer';
 
 /**
  * 构建八字批注的专业Prompt
@@ -105,6 +109,7 @@ ${dayunData.slice(0, 5).map((step, index) =>
 **禁止事项**：
 - 禁止在回答末尾添加任何免责声明或AI署名
 - 禁止输出类似"以上内容由XX生成"、"仅供参考"等声明
+- 禁止添加与八字分析无关的人生感悟或祝福性套话结语
 - 直接给出专业分析内容，无需说明内容来源
 - **严禁使用任何身份引言或开场白**，例如：
   - "好的，作为一位资深命理师，我来为您批注八字"
@@ -216,6 +221,13 @@ export async function analyzeBazi(req: Request, res: Response): Promise<void> {
     );
 
     let fullAnalysis = '';
+    const outputFilter = createAiOutputStreamFilter();
+
+    const appendSafeContent = (content: string) => {
+      if (!content) return;
+      fullAnalysis += content;
+      res.write(`data: ${JSON.stringify({ content })}\n\n`);
+    };
 
     // 处理流式响应
     response.data.on('data', (chunk: Buffer) => {
@@ -226,6 +238,8 @@ export async function analyzeBazi(req: Request, res: Response): Promise<void> {
           const data = line.slice(6);
 
           if (data === '[DONE]') {
+            appendSafeContent(outputFilter.flush());
+
             // 流结束，保存完整分析到数据库
             if (recordId && fullAnalysis) {
               update(
@@ -246,8 +260,7 @@ export async function analyzeBazi(req: Request, res: Response): Promise<void> {
             const content = parsed.choices?.[0]?.delta?.content;
 
             if (content) {
-              fullAnalysis += content;
-              res.write(`data: ${JSON.stringify({ content })}\n\n`);
+              appendSafeContent(outputFilter.push(content));
             }
           } catch (e) {
             // 忽略解析错误
@@ -264,6 +277,7 @@ export async function analyzeBazi(req: Request, res: Response): Promise<void> {
 
     response.data.on('end', () => {
       if (!res.writableEnded) {
+        appendSafeContent(outputFilter.flush());
         res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
         res.end();
       }
@@ -365,7 +379,9 @@ export async function analyzeBaziSync(req: Request, res: Response): Promise<void
       }
     );
 
-    const analysis = response.data.choices?.[0]?.message?.content || '';
+    const analysis = stripGeneratedDisclaimer(
+      response.data.choices?.[0]?.message?.content || ''
+    );
 
     // 保存到数据库
     if (recordId && analysis) {

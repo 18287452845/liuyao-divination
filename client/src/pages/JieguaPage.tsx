@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import { divinationApi, analyzeGuaStream, chatGuaStream } from '../utils/api';
 import { useToast } from '../hooks/useToast';
 import { shareRecord, copyToClipboard } from '../utils/export';
+import { stripGeneratedDisclaimer } from '../utils/aiOutput';
 import { normalizeLegacyText } from '../utils/textNormalize';
 import GuaDisplay from '../components/GuaDisplay';
 import LoadingSkeleton from '../components/LoadingSkeleton';
@@ -39,6 +40,13 @@ function getStoredChatMessages(recordId: string): AiChatMessage[] {
         typeof message.content === 'string' &&
         message.content.trim().length > 0
       ))
+      .map((message) => ({
+        ...message,
+        content: message.role === 'assistant'
+          ? stripGeneratedDisclaimer(message.content)
+          : message.content,
+      }))
+      .filter((message) => message.content.trim().length > 0)
       .slice(-CHAT_MAX_STORED_MESSAGES);
   } catch {
     return [];
@@ -74,7 +82,7 @@ const JieguaPage: React.FC = () => {
       setRecord(data);
       setChatMessages(getStoredChatMessages(recordId));
       if (data.aiAnalysis) {
-        setAnalysis(data.aiAnalysis);
+        setAnalysis(stripGeneratedDisclaimer(data.aiAnalysis));
       }
     } catch (error) {
       console.error('加载卦象失败:', error);
