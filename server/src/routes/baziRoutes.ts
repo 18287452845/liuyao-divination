@@ -112,6 +112,18 @@ router.post(
 );
 
 /**
+ * AI流式追问聊天（基于已批注的八字记录，SSE）
+ * POST /api/bazi/ai/chat
+ * 权限：bazi:aiAnalysis
+ */
+router.post(
+  '/ai/chat',
+  authenticate,
+  requirePermissions('bazi:aiAnalysis'),
+  aiController.chatBazi
+);
+
+/**
  * AI非流式分析八字（备用）
  * POST /api/bazi/ai/analyze-sync
  * 权限：bazi:aiAnalysis

@@ -9,7 +9,7 @@ import {
   sanitizeChatHistory,
   stripGeneratedDisclaimer,
   validateAiRequest,
-} from '../supabase/functions/analyze-ai/prompt.ts';
+} from '../src/utils/aiPrompt';
 
 const baseChatRequest = {
   type: 'gua',

@@ -3,6 +3,13 @@ import axios from 'axios';
 import { Lunar } from 'lunar-javascript';
 import { normalizeLegacyText } from '../utils/textNormalize';
 import { createAiOutputStreamFilter } from '../utils/aiOutputSanitizer';
+import { queryOne } from '../models/database';
+import {
+  buildDeepSeekMessages,
+  buildGuaRecordContext,
+  createAiOutputStreamFilter as createChatStreamFilter,
+  validateAiRequest,
+} from '../utils/aiPrompt';
 
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_API_BASE = (process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com').replace(/\/+$/, '');
@@ -571,3 +578,130 @@ function buildAnalysisPrompt(
 
   return prompt;
 }
+
+/**
+ * AI 追问聊天（基于已解卦的卦例继续提问，SSE 流式）
+ * POST /api/ai/chat
+ */
+export const chatGua = async (req: Request, res: Response) => {
+  const body = { ...req.body, type: 'gua', mode: 'chat', requestTimestamp: Date.now() };
+
+  const validationError = validateAiRequest(body);
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
+  }
+
+  const userId = (req as any).user?.userId;
+
+  try {
+    const record: any = await queryOne(
+      `SELECT timestamp, question, gender, bazi, ben_gua, bian_gua, decoration, user_id
+       FROM divination_records WHERE id = ? AND user_id = ?`,
+      [String(body.recordId).trim(), userId]
+    );
+
+    if (!record) {
+      return res.status(404).json({ error: '卦例不存在或无权访问' });
+    }
+
+    // API Key：用户个人 Key 优先，其次系统 Key
+    let apiKey = DEEPSEEK_API_KEY;
+    if (userId) {
+      const user: any = await queryOne(
+        'SELECT deepseek_api_key FROM users WHERE id = ?',
+        [userId]
+      );
+      if (user?.deepseek_api_key) {
+        apiKey = user.deepseek_api_key;
+      }
+    }
+
+    if (!apiKey || apiKey.trim() === '') {
+      return res.status(500).json({ error: '请先在 API Key 设置中配置 DeepSeek API Key' });
+    }
+
+    body.data = buildGuaRecordContext(record);
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const response = await axios.post(
+      DEEPSEEK_API_URL,
+      {
+        model: DEEPSEEK_MODEL,
+        messages: buildDeepSeekMessages(body),
+        stream: true,
+        temperature: 0.5
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        responseType: 'stream'
+      }
+    );
+
+    const outputFilter = createChatStreamFilter();
+    let outputCompleted = false;
+
+    const completeOutput = () => {
+      if (outputCompleted) return;
+
+      const finalContent = outputFilter.flush();
+      if (finalContent) {
+        res.write(`data: ${JSON.stringify({ content: finalContent })}\n\n`);
+      }
+      res.write('data: [DONE]\n\n');
+      outputCompleted = true;
+    };
+
+    response.data.on('data', (chunk: Buffer) => {
+      const lines = chunk.toString().split('\n').filter(line => line.trim() !== '');
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) {
+          continue;
+        }
+
+        const data = line.slice(6);
+        if (data === '[DONE]') {
+          completeOutput();
+        } else {
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed.choices[0]?.delta?.content || '';
+            if (content) {
+              const safeContent = outputFilter.push(content);
+              if (safeContent) {
+                res.write(`data: ${JSON.stringify({ content: safeContent })}\n\n`);
+              }
+            }
+          } catch (e) {
+            // 忽略解析错误
+          }
+        }
+      }
+    });
+
+    response.data.on('end', () => {
+      completeOutput();
+      res.end();
+    });
+
+    response.data.on('error', (error: Error) => {
+      console.error('追问流式响应错误:', error);
+      completeOutput();
+      res.end();
+    });
+  } catch (error: any) {
+    console.error('AI追问错误:', error.message);
+    const errorMessage = normalizeLegacyText(
+      error?.response?.data?.error?.message ||
+      error?.response?.data?.message ||
+      'AI追问失败，请稍后重试'
+    );
+    res.status(500).json({ error: errorMessage });
+  }
+};

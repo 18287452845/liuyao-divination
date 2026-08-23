@@ -8,7 +8,6 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
-          if (id.includes('@supabase')) return 'supabase';
           if (id.includes('react') || id.includes('scheduler')) return 'react-vendor';
           if (id.includes('react-markdown') || id.includes('remark-') || id.includes('rehype-') || id.includes('unified')) {
             return 'markdown';
@@ -20,7 +19,13 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0',
+    host: '0.0.0.0', // 允许从网络访问
     port: 3000,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+    },
   },
 });

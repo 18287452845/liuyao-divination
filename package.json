@@ -5,11 +5,16 @@
   "private": true,
   "scripts": {
     "install:all": "npm install && npm --prefix client install && npm --prefix server install",
-    "dev": "npm run client:dev",
+    "dev": "concurrently \"npm run client:dev\" \"npm run server:dev\"",
     "client:dev": "cd client && npm run dev",
+    "server:dev": "cd server && npm run dev",
     "client:build": "cd client && npm run build",
-    "test:liuyao": "npm --prefix server test",
-    "build": "npm run client:build"
+    "server:build": "cd server && npm run build",
+    "build": "npm run client:build && npm run server:build",
+    "test:liuyao": "npm --prefix server test"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   },
   "engines": {
     "node": ">=18.0.0"

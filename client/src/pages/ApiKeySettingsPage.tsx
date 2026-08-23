@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+﻿import React, { useEffect, useState } from 'react';
+import { fetchWithAutoRefresh } from '../utils/tokenRefresh';
 
 interface ApiKeyInfo {
   hasApiKey: boolean;
@@ -7,16 +7,8 @@ interface ApiKeyInfo {
   updatedAt: string | null;
 }
 
-function maskApiKey(apiKey: string) {
-  if (apiKey.length <= 12) {
-    return '********';
-  }
-  return `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}`;
-}
-
 const ApiKeySettingsPage: React.FC = () => {
   const [apiKeyInfo, setApiKeyInfo] = useState<ApiKeyInfo | null>(null);
-  const [storedApiKey, setStoredApiKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -29,44 +21,22 @@ const ApiKeySettingsPage: React.FC = () => {
     fetchApiKeyInfo();
   }, []);
 
-  const getUserId = async () => {
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser();
-
-    if (error || !user) {
-      throw new Error('未登录');
-    }
-
-    return user.id;
-  };
-
   const fetchApiKeyInfo = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const userId = await getUserId();
-      const { data, error } = await supabase
-        .from('users')
-        .select('deepseek_api_key, api_key_updated_at')
-        .eq('id', userId)
-        .single();
+      const response = await fetchWithAutoRefresh('/api/user/api-key');
+      const data = await response.json();
 
-      if (error) {
-        throw error;
+      if (response.ok && data.success) {
+        setApiKeyInfo(data.data);
+      } else {
+        setError(data.message || '获取 API Key 信息失败');
       }
-
-      const apiKey = data?.deepseek_api_key || null;
-      setStoredApiKey(apiKey);
-      setApiKeyInfo({
-        hasApiKey: Boolean(apiKey),
-        apiKey: apiKey ? maskApiKey(apiKey) : null,
-        updatedAt: data?.api_key_updated_at || null,
-      });
-    } catch (err: any) {
-      setError(err.message || '获取 API Key 信息失败');
+    } catch (err) {
+      setError('网络错误，请稍后重试');
+      console.error('获取 API Key 错误:', err);
     } finally {
       setLoading(false);
     }
@@ -83,25 +53,27 @@ const ApiKeySettingsPage: React.FC = () => {
       setError(null);
       setSuccess(null);
 
-      const userId = await getUserId();
-      const { error } = await supabase
-        .from('users')
-        .update({
-          deepseek_api_key: newApiKey.trim(),
-          api_key_updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId);
+      const response = await fetchWithAutoRefresh('/api/user/api-key', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ apiKey: newApiKey.trim() }),
+      });
 
-      if (error) {
-        throw error;
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setSuccess('API Key 保存成功');
+        setIsEditing(false);
+        setNewApiKey('');
+        await fetchApiKeyInfo();
+      } else {
+        setError(data.message || '保存失败');
       }
-
-      setSuccess('API Key 保存成功');
-      setIsEditing(false);
-      setNewApiKey('');
-      await fetchApiKeyInfo();
-    } catch (err: any) {
-      setError(err.message || '保存失败');
+    } catch (err) {
+      setError('网络错误，请稍后重试');
+      console.error('保存 API Key 错误:', err);
     } finally {
       setSaving(false);
     }
@@ -117,29 +89,35 @@ const ApiKeySettingsPage: React.FC = () => {
       setError(null);
       setSuccess(null);
 
-      const userId = await getUserId();
-      const { error } = await supabase
-        .from('users')
-        .update({ deepseek_api_key: null, api_key_updated_at: null })
-        .eq('id', userId);
+      const response = await fetchWithAutoRefresh('/api/user/api-key', {
+        method: 'DELETE',
+      });
 
-      if (error) {
-        throw error;
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setSuccess('API Key 已删除');
+        await fetchApiKeyInfo();
+      } else {
+        setError(data.message || '删除失败');
       }
-
-      setSuccess('API Key 已删除');
-      await fetchApiKeyInfo();
-    } catch (err: any) {
-      setError(err.message || '删除失败');
+    } catch (err) {
+      setError('网络错误，请稍后重试');
+      console.error('删除 API Key 错误:', err);
     } finally {
       setSaving(false);
     }
   };
 
   const handleTestApiKey = async () => {
-    const keyToTest = isEditing ? newApiKey.trim() : storedApiKey;
+    const keyToTest = isEditing ? newApiKey.trim() : null;
 
-    if (!keyToTest) {
+    if (isEditing && !keyToTest) {
+      setError('请输入 API Key');
+      return;
+    }
+
+    if (!isEditing && !apiKeyInfo?.hasApiKey) {
       setError('请先配置 API Key');
       return;
     }
@@ -152,32 +130,34 @@ const ApiKeySettingsPage: React.FC = () => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 45000);
 
-      const response = await fetch('https://api.deepseek.com/chat/completions', {
+      const response = await fetchWithAutoRefresh('/api/user/api-key/test', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${keyToTest}`,
         },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [{ role: 'user', content: 'ping' }],
-          max_tokens: 1,
-          stream: false,
-        }),
+        body: JSON.stringify(keyToTest ? { apiKey: keyToTest } : {}),
         signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
 
-      const data = await response.json().catch(() => null);
+      const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data?.error?.message || 'API Key 验证失败');
+      if (data.success) {
+        setSuccess('API Key 验证成功');
+      } else {
+        setError(data.message || 'API Key 验证失败');
+        if (import.meta.env.DEV && data.debug) {
+          console.error('API Key 测试调试信息:', data.debug);
+        }
       }
-
-      setSuccess('API Key 验证成功');
     } catch (err: any) {
-      setError(err.name === 'AbortError' ? '请求超时，请检查网络连接后重试' : err.message || '网络错误，请稍后重试');
+      if (err.name === 'AbortError') {
+        setError('请求超时，请检查网络连接后重试');
+      } else {
+        setError('网络错误，请稍后重试');
+      }
+      console.error('测试 API Key 错误:', err);
     } finally {
       setTesting(false);
     }
@@ -199,45 +179,70 @@ const ApiKeySettingsPage: React.FC = () => {
           <p className="text-gray-600">配置您的 DeepSeek API Key 以使用 AI 解卦功能</p>
         </div>
 
-        {error && <div className="mb-6 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">{error}</div>}
-        {success && <div className="mb-6 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg">{success}</div>}
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-6 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg">
+            {success}
+          </div>
+        )}
 
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">当前 API Key</h2>
 
           {!isEditing ? (
-            apiKeyInfo?.hasApiKey ? (
-              <div>
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <p className="text-sm text-gray-600 mb-2">API Key (已脱敏)</p>
-                  <p className="font-mono text-gray-800 break-all">{apiKeyInfo.apiKey}</p>
-                  {apiKeyInfo.updatedAt && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      最后更新: {new Date(apiKeyInfo.updatedAt).toLocaleString('zh-CN')}
-                    </p>
-                  )}
-                </div>
+            <div>
+              {apiKeyInfo?.hasApiKey ? (
+                <div>
+                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                    <p className="text-sm text-gray-600 mb-2">API Key (已脱敏)</p>
+                    <p className="font-mono text-gray-800 break-all">{apiKeyInfo.apiKey}</p>
+                    {apiKeyInfo.updatedAt && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        最后更新: {new Date(apiKeyInfo.updatedAt).toLocaleString('zh-CN')}
+                      </p>
+                    )}
+                  </div>
 
-                <div className="flex gap-3">
-                  <button onClick={() => setIsEditing(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                    更新 API Key
-                  </button>
-                  <button onClick={handleTestApiKey} disabled={testing} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
-                    {testing ? '测试中...' : '测试连接'}
-                  </button>
-                  <button onClick={handleDeleteApiKey} disabled={saving} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
-                    删除 API Key
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      更新 API Key
+                    </button>
+                    <button
+                      onClick={handleTestApiKey}
+                      disabled={testing}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                    >
+                      {testing ? '测试中...' : '测试连接'}
+                    </button>
+                    <button
+                      onClick={handleDeleteApiKey}
+                      disabled={saving}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                    >
+                      删除 API Key
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-gray-600 mb-4">您还没有配置 API Key</p>
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    配置 API Key
                   </button>
                 </div>
-              </div>
-            ) : (
-              <div>
-                <p className="text-gray-600 mb-4">您还没有配置 API Key</p>
-                <button onClick={() => setIsEditing(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  配置 API Key
-                </button>
-              </div>
-            )
+              )}
+            </div>
           ) : (
             <div>
               <div className="mb-4">
@@ -252,10 +257,18 @@ const ApiKeySettingsPage: React.FC = () => {
               </div>
 
               <div className="flex gap-3">
-                <button onClick={handleSaveApiKey} disabled={saving || !newApiKey.trim()} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                <button
+                  onClick={handleSaveApiKey}
+                  disabled={saving || !newApiKey.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
                   {saving ? '保存中...' : '保存'}
                 </button>
-                <button onClick={handleTestApiKey} disabled={testing || !newApiKey.trim()} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                <button
+                  onClick={handleTestApiKey}
+                  disabled={testing || !newApiKey.trim()}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                >
                   {testing ? '测试中...' : '测试 Key'}
                 </button>
                 <button
@@ -264,7 +277,7 @@ const ApiKeySettingsPage: React.FC = () => {
                     setNewApiKey('');
                     setError(null);
                   }}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
                 >
                   取消
                 </button>

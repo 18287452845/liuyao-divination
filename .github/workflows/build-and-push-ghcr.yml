@@ -17,7 +17,8 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/client
+  CLIENT_IMAGE_NAME: ${{ github.repository }}/client
+  SERVER_IMAGE_NAME: ${{ github.repository }}/server
 
 jobs:
   validate:
@@ -75,11 +76,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract image metadata
-        id: meta
+      - name: Extract client image metadata
+        id: meta-client
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.CLIENT_IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Extract server image metadata
+        id: meta-server
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.SERVER_IMAGE_NAME }}
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -92,10 +104,18 @@ jobs:
           context: ./client
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta-client.outputs.tags }}
+          labels: ${{ steps.meta-client.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            VITE_SUPABASE_URL=${{ vars.VITE_SUPABASE_URL }}
-            VITE_SUPABASE_PUBLISHABLE_KEY=${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+      - name: Build and push server image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./server
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta-server.outputs.tags }}
+          labels: ${{ steps.meta-server.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

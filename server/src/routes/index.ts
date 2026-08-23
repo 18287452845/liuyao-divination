@@ -12,7 +12,7 @@ import {
   getUnverifiedRecords,
   getStatistics
 } from '../controllers/divinationController';
-import { analyzeGua } from '../controllers/aiController';
+import { analyzeGua, chatGua } from '../controllers/aiController';
 import {
   solarToLunar,
   lunarToSolar,
@@ -133,6 +133,7 @@ router.get('/statistics', authenticate, getStatistics);
 
 // AI解卦路由（需要登录和权限）
 router.post('/ai/analyze', authenticate, requirePermissions('divination:aiAnalysis'), analyzeGua);
+router.post('/ai/chat', authenticate, requirePermissions('divination:aiAnalysis'), chatGua);
 
 // 工具路由（需要登录）
 router.get('/tools/calendar/solar-to-lunar', authenticate, solarToLunar);

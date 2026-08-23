@@ -1,5 +1,5 @@
 # 构建阶段 - 安装所有依赖并构建
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -29,7 +29,7 @@ RUN npx tsc --version && \
     npm run build
 
 # 生产镜像
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
@@ -56,7 +56,6 @@ COPY --from=builder /app/dist ./dist
 
 # 复制必要的静态资源（如果存在）
 RUN if [ -d /app/sql ]; then cp -r /app/sql ./sql; fi
-RUN if [ -d /app/supabase ]; then cp -r /app/supabase ./supabase; fi
 
 # 更改文件所有权
 RUN chown -R nodejs:nodejs /app

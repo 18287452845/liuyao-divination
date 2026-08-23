@@ -1,6 +1,5 @@
 ﻿import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import type { Session } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { clearStoredAuth, fetchWithAutoRefresh } from '../utils/tokenRefresh';
 
 interface User {
   userId: string;
@@ -20,13 +19,7 @@ interface AuthContextType {
   accessToken: string | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  register: (
-    username: string,
-    password: string,
-    email?: string,
-    realName?: string,
-    inviteCode?: string
-  ) => Promise<void>;
+  register: (username: string, password: string, email?: string, realName?: string) => Promise<void>;
   logout: () => void;
   updateUser: (user: User) => void;
   hasPermission: (permission: string) => boolean;
@@ -36,86 +29,12 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function usernameToAuthEmail(username: string): string {
-  const normalized = username.trim().toLowerCase();
-  return normalized.includes('@') ? normalized : `${normalized}@auth.liuyao.app`;
-}
-
-async function fetchUserProfile(authUserId: string): Promise<User> {
-  const { data: profile, error: profileError } = await supabase
-    .from('users')
-    .select('id, username, email, real_name, avatar')
-    .eq('id', authUserId)
-    .single();
-
-  if (profileError) {
-    throw profileError;
+function formatApiError(data: any, fallback: string) {
+  if (Array.isArray(data?.errors) && data.errors.length > 0) {
+    return `${data.message || fallback}：${data.errors.join('；')}`;
   }
 
-  const { data: userRoles, error: rolesError } = await supabase
-    .from('user_roles')
-    .select('roles(id, role_code, role_name)')
-    .eq('user_id', authUserId);
-
-  if (rolesError) {
-    throw rolesError;
-  }
-
-  const roles = (userRoles || [])
-    .map((item: any) => item.roles)
-    .filter(Boolean)
-    .map((role: any) => ({
-      id: role.id as string,
-      code: role.role_code as string,
-      name: role.role_name as string,
-    }));
-
-  let permissions: string[] = [];
-
-  if (roles.length > 0) {
-    const { data: rolePermissions, error: permissionsError } = await supabase
-      .from('role_permissions')
-      .select('role_id, permissions(permission_code)')
-      .in(
-        'role_id',
-        roles.map((role) => role.id)
-      );
-
-    if (permissionsError) {
-      throw permissionsError;
-    }
-
-    permissions = Array.from(
-      new Set(
-        (rolePermissions || [])
-          .map((item: any) => item.permissions?.permission_code)
-          .filter(Boolean)
-      )
-    );
-  }
-
-  return {
-    userId: profile.id,
-    username: profile.username,
-    email: profile.email || undefined,
-    realName: profile.real_name || undefined,
-    avatar: profile.avatar || undefined,
-    roles: roles.map(({ code, name }) => ({ code, name })),
-    permissions,
-  };
-}
-
-function storeSession(session: Session | null, user: User | null) {
-  if (!session || !user) {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
-    return;
-  }
-
-  localStorage.setItem('accessToken', session.access_token);
-  localStorage.setItem('refreshToken', session.refresh_token);
-  localStorage.setItem('user', JSON.stringify(user));
+  return data?.message || fallback;
 }
 
 export const useAuth = () => {
@@ -135,143 +54,123 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadSessionUser = async (session: Session | null) => {
-    if (!session?.user?.id) {
-      setUser(null);
-      setAccessToken(null);
-      storeSession(null, null);
-      return;
-    }
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await fetchWithAutoRefresh('/api/auth/me');
+      const data = await response.json();
 
-    const userData = await fetchUserProfile(session.user.id);
-    setUser(userData);
-    setAccessToken(session.access_token);
-    storeSession(session, userData);
-  };
-
-  useEffect(() => {
-    let mounted = true;
-
-    const bootstrapAuth = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (mounted) {
-          await loadSessionUser(session);
-        }
-      } catch (error) {
-        console.error('鑾峰彇鐢ㄦ埛淇℃伅澶辫触:', error);
-        if (mounted) {
-          setUser(null);
-          setAccessToken(null);
-          storeSession(null, null);
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    bootstrapAuth();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) {
+      if (!response.ok || !data.success) {
+        clearStoredAuth();
+        setUser(null);
+        setAccessToken(null);
         return;
       }
 
-      setTimeout(() => {
-        if (!mounted) {
-          return;
-        }
+      const userData: User = {
+        userId: data.data.userId,
+        username: data.data.username,
+        email: data.data.email,
+        realName: data.data.realName,
+        avatar: data.data.avatar,
+        roles: data.data.roles,
+        permissions: data.data.permissions,
+      };
 
-        void loadSessionUser(session).catch((error) => {
-          console.error('同步登录状态失败:', error);
-          setUser(null);
-          setAccessToken(null);
-          storeSession(null, null);
-        });
-      }, 0);
-    });
+      setUser(userData);
+      setAccessToken(localStorage.getItem('accessToken'));
+      localStorage.setItem('user', JSON.stringify(userData));
+    } catch (error) {
+      console.error('获取用户信息失败:', error);
+      clearStoredAuth();
+      setUser(null);
+      setAccessToken(null);
+    }
+  };
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
+  useEffect(() => {
+    const bootstrapAuth = async () => {
+      const storedToken = localStorage.getItem('accessToken');
+      const storedRefreshToken = localStorage.getItem('refreshToken');
+      const storedUser = localStorage.getItem('user');
+
+      if (storedUser && (storedToken || storedRefreshToken)) {
+        setAccessToken(storedToken);
+        setUser(JSON.parse(storedUser));
+        await fetchCurrentUser();
+      } else {
+        clearStoredAuth();
+      }
+
+      setLoading(false);
     };
+
+    bootstrapAuth();
   }, []);
 
   const login = async (username: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: usernameToAuthEmail(username),
-      password,
-    });
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
 
-    if (error) {
-      throw new Error(error.message || '鐧诲綍澶辫触');
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(formatApiError(data, '登录失败'));
+      }
+
+      const userData: User = {
+        userId: data.data.userId,
+        username: data.data.username,
+        roles: data.data.roles,
+        permissions: [],
+      };
+
+      setAccessToken(data.data.accessToken);
+      setUser(userData);
+
+      localStorage.setItem('accessToken', data.data.accessToken);
+      localStorage.setItem('refreshToken', data.data.refreshToken);
+      localStorage.setItem('user', JSON.stringify(userData));
+
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('登录失败:', error);
+      throw error;
     }
-
-    await loadSessionUser(data.session);
   };
 
-  const register = async (
-    username: string,
-    password: string,
-    email?: string,
-    realName?: string,
-    _inviteCode?: string
-  ) => {
-    const cleanUsername = username.trim();
-
-    if (!/^[a-zA-Z0-9_]{3,20}$/.test(cleanUsername)) {
-      throw new Error('用户名长度必须为 3-20 位，只能包含字母、数字和下划线');
-    }
-
-    const { data, error } = await supabase.auth.signUp({
-      email: usernameToAuthEmail(cleanUsername),
-      password,
-      options: {
-        data: {
-          username: cleanUsername,
-          real_name: realName || null,
-          contact_email: email || null,
+  const register = async (username: string, password: string, email?: string, realName?: string) => {
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      },
-    });
+        body: JSON.stringify({ username, password, email, realName }),
+      });
 
-    if (error) {
-      throw new Error(error.message || '娉ㄥ唽澶辫触');
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(formatApiError(data, '注册失败'));
+      }
+
+      await login(username, password);
+    } catch (error) {
+      console.error('注册失败:', error);
+      throw error;
     }
-
-    if (!data.session || !data.user) {
-      throw new Error('注册已提交，但当前 Supabase 项目要求邮箱确认。请关闭邮箱确认，或使用真实邮箱完成确认后登录。');
-    }
-
-    const { error: profileError } = await supabase.from('users').insert({
-      id: data.user.id,
-      username: cleanUsername,
-      password: '',
-      email: email || null,
-      real_name: realName || null,
-      status: 1,
-      last_password_change: new Date().toISOString(),
-    });
-
-    if (profileError) {
-      throw new Error(profileError.message || '鍒涘缓鐢ㄦ埛璧勬枡澶辫触');
-    }
-
-    await loadSessionUser(data.session);
   };
 
   const logout = () => {
     setUser(null);
     setAccessToken(null);
-    storeSession(null, null);
-    void supabase.auth.signOut();
+    clearStoredAuth();
   };
 
   const updateUser = (updatedUser: User) => {

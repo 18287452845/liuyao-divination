@@ -60,3 +60,6 @@ ssl/
 *.old
 .claude/settings.local.json
 .gitignore
+
+# 嵌套的独立 git 仓库（教学资料），不纳入本仓库
+teaching-docs/

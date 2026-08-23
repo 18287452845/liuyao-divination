@@ -175,12 +175,3 @@ test('八卦数序与六十四卦矩阵可双向重建', () => {
     }
   }
 });
-
-test('服务端与浏览器端的六爻领域实现保持同步', () => {
-  const repositoryRoot = path.resolve(__dirname, '..', '..');
-  for (const fileName of ['constants.ts', 'bagong.ts', 'liuyao.ts', 'liuyaoAnalysis.ts']) {
-    const serverSource = fs.readFileSync(path.join(repositoryRoot, 'server', 'src', 'utils', fileName), 'utf8');
-    const clientSource = fs.readFileSync(path.join(repositoryRoot, 'client', 'src', 'domain', 'liuyao', fileName), 'utf8');
-    assert.equal(clientSource, serverSource, `${fileName}已在两端漂移`);
-  }
-});

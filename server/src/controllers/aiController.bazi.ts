@@ -12,6 +12,11 @@ import {
   createAiOutputStreamFilter,
   stripGeneratedDisclaimer,
 } from '../utils/aiOutputSanitizer';
+import {
+  buildDeepSeekMessages,
+  createAiOutputStreamFilter as createChatStreamFilter,
+  validateAiRequest,
+} from '../utils/aiPrompt';
 
 /**
  * 构建八字批注的专业Prompt
@@ -411,6 +416,148 @@ export async function analyzeBaziSync(req: Request, res: Response): Promise<void
     res.status(500).json({
       success: false,
       message: 'AI分析失败',
+      error: errorMessage
+    });
+  }
+}
+
+/**
+ * AI 追问聊天（基于已批注的八字记录继续提问，SSE 流式）
+ * POST /api/bazi/ai/chat
+ */
+export async function chatBazi(req: Request, res: Response): Promise<void> {
+  const body = {
+    ...req.body,
+    type: 'bazi',
+    mode: 'chat',
+    requestTimestamp: Date.now(),
+  };
+
+  const validationError = validateAiRequest(body);
+  if (validationError) {
+    res.status(400).json({ success: false, message: validationError });
+    return;
+  }
+
+  const userId = (req as any).user?.userId;
+
+  try {
+    // 如果提供了 recordId，验证记录所有权
+    if (body.recordId) {
+      const record: any = await queryOne(
+        'SELECT id FROM bazi_records WHERE id = ? AND user_id = ?',
+        [String(body.recordId).trim(), userId]
+      );
+
+      if (!record) {
+        res.status(404).json({ success: false, message: '记录不存在或无权访问' });
+        return;
+      }
+    }
+
+    // API Key（用户自定义优先）
+    let apiKey = process.env.DEEPSEEK_API_KEY;
+    const apiUrl = (process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com').replace(/\/+$/, '');
+    const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
+
+    if (userId) {
+      const user: any = await queryOne(
+        'SELECT deepseek_api_key FROM users WHERE id = ?',
+        [userId]
+      );
+      if (user?.deepseek_api_key) {
+        apiKey = user.deepseek_api_key;
+      }
+    }
+
+    if (!apiKey) {
+      res.status(500).json({ success: false, message: '请先在 API Key 设置中配置 DeepSeek API Key' });
+      return;
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const response = await axios.post(
+      `${apiUrl}/v1/chat/completions`,
+      {
+        model,
+        messages: buildDeepSeekMessages(body),
+        stream: true,
+        temperature: 0.5
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        responseType: 'stream'
+      }
+    );
+
+    const outputFilter = createChatStreamFilter();
+    let outputCompleted = false;
+
+    const completeOutput = () => {
+      if (outputCompleted) return;
+
+      const finalContent = outputFilter.flush();
+      if (finalContent) {
+        res.write(`data: ${JSON.stringify({ content: finalContent })}\n\n`);
+      }
+      res.write('data: [DONE]\n\n');
+      outputCompleted = true;
+    };
+
+    response.data.on('data', (chunk: Buffer) => {
+      const lines = chunk.toString().split('\n').filter(line => line.trim() !== '');
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) {
+          continue;
+        }
+
+        const data = line.slice(6);
+        if (data === '[DONE]') {
+          completeOutput();
+        } else {
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed.choices[0]?.delta?.content || '';
+            if (content) {
+              const safeContent = outputFilter.push(content);
+              if (safeContent) {
+                res.write(`data: ${JSON.stringify({ content: safeContent })}\n\n`);
+              }
+            }
+          } catch (e) {
+            // 忽略解析错误
+          }
+        }
+      }
+    });
+
+    response.data.on('end', () => {
+      completeOutput();
+      res.end();
+    });
+
+    response.data.on('error', (error: Error) => {
+      console.error('八字追问流式响应错误:', error);
+      completeOutput();
+      res.end();
+    });
+  } catch (error) {
+    console.error('八字AI追问失败:', error);
+    const errorMessage = normalizeLegacyText(
+      (error as any)?.response?.data?.error?.message ||
+      (error as any)?.response?.data?.message ||
+      'AI追问失败，请稍后重试'
+    );
+    res.status(500).json({
+      success: false,
+      message: 'AI追问失败',
       error: errorMessage
     });
   }

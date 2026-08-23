@@ -2,9 +2,17 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
+function formatApiError(data: any, fallback: string) {
+  if (Array.isArray(data?.errors) && data.errors.length > 0) {
+    return `${data.message || fallback}：${data.errors.join('；')}`;
+  }
+
+  return data?.message || fallback;
+}
+
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { login, register } = useAuth();
+  const { login } = useAuth();
 
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
@@ -29,13 +37,25 @@ const LoginPage: React.FC = () => {
         return;
       }
 
-      await register(
-        formData.username,
-        formData.password,
-        formData.email || undefined,
-        formData.realName || undefined,
-        formData.inviteCode || undefined
-      );
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: formData.username,
+          password: formData.password,
+          email: formData.email || undefined,
+          realName: formData.realName || undefined,
+          inviteCode: formData.inviteCode,
+        }),
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(formatApiError(data, '注册失败'));
+      }
+
+      await login(formData.username, formData.password);
       navigate('/');
     } catch (err: any) {
       setError(err.message || '操作失败');
