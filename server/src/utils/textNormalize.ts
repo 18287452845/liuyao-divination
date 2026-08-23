@@ -105,6 +105,12 @@ export function normalizeLegacyData<T>(value: T): T {
   }
 
   if (value && typeof value === 'object') {
+    // Date/Buffer 等非普通对象没有可枚举自有属性，
+    // 重建为普通对象会把它们变成 {}（曾导致所有时间戳序列化为空对象），必须原样返回
+    if (value instanceof Date || Buffer.isBuffer(value)) {
+      return value;
+    }
+
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>).map(([key, item]) => [
         key,
