@@ -3,13 +3,6 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# 更新包管理器并安装基础工具
-RUN apk update && apk add --no-cache \
-    python3 \
-    make \
-    g++ \
-    && rm -rf /var/cache/apk/*
-
 # 复制package文件
 COPY package*.json ./
 
@@ -32,11 +25,6 @@ RUN npx tsc --version && \
 FROM node:20-alpine
 
 WORKDIR /app
-
-# 安装基础运行时依赖
-RUN apk update && apk add --no-cache \
-    dumb-init \
-    && rm -rf /var/cache/apk/*
 
 # 创建非root用户
 RUN addgroup -g 1001 -S nodejs && \
@@ -67,9 +55,6 @@ EXPOSE 5000
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
   CMD node -e "try{require('http').get('http://127.0.0.1:5000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})}catch(e){process.exit(1)}"
-
-# 使用dumb-init作为初始化进程
-ENTRYPOINT ["dumb-init", "--"]
 
 # 启动应用
 CMD ["node", "dist/index.js"]

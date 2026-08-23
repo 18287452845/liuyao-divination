@@ -3,9 +3,6 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# 安装构建依赖（python3和build-base包含了make和g++）
-RUN apk add --no-cache python3 build-base git
-
 # 设置npm配置
 RUN npm config set registry https://registry.npmjs.org/ && \
     npm config set fund false && \
