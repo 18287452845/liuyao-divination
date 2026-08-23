@@ -17,9 +17,8 @@ RUN npm ci --quiet
 # 复制源代码
 COPY . .
 
-# 验证构建工具并构建项目
-RUN npx vite --version && \
-    npm run build
+# 构建项目
+RUN npm run build
 
 # 生产阶段
 FROM nginx:1.25-alpine

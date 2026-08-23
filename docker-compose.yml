@@ -47,6 +47,7 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
+      network: host
     container_name: liuyao-server
     restart: always
     environment:
@@ -88,6 +89,7 @@ services:
     build:
       context: ./client
       dockerfile: Dockerfile
+      network: host
     container_name: liuyao-client
     restart: always
     ports:

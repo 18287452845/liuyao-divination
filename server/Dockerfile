@@ -17,9 +17,8 @@ RUN npm ci --quiet
 # 复制源代码
 COPY . .
 
-# 验证TypeScript安装并构建项目
-RUN npx tsc --version && \
-    npm run build
+# 构建项目
+RUN npm run build
 
 # 生产镜像
 FROM node:20-alpine
