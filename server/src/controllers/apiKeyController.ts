@@ -4,7 +4,8 @@
  */
 
 import { Request, Response } from 'express';
-import { query, queryOne, update } from '../models/database';
+import { queryOne, update } from '../models/database';
+import { hasSystemDeepSeekKey } from '../utils/deepseekKey';
 
 /**
  * 获取当前用户的 API Key（脱敏显示）
@@ -50,6 +51,8 @@ export async function getApiKey(req: Request, res: Response): Promise<void> {
         hasApiKey: !!user.deepseek_api_key,
         apiKey: maskedKey,
         updatedAt: user.api_key_updated_at,
+        // 告知前端系统级 Key 是否可用（个人 Key 删除/未配置时的回退）
+        systemKeyConfigured: hasSystemDeepSeekKey(),
       },
     });
   } catch (error) {
@@ -59,6 +62,25 @@ export async function getApiKey(req: Request, res: Response): Promise<void> {
       message: '获取API Key失败',
     });
   }
+}
+
+/**
+ * 校验 API Key 格式，返回错误消息（null 表示合法）
+ */
+function validateApiKeyFormat(apiKey: string): string | null {
+  if (!apiKey.startsWith('sk-')) {
+    return 'API Key 格式不正确，应以 sk- 开头';
+  }
+  if (apiKey.length < 20) {
+    return 'API Key 长度不正确，请检查是否完整复制';
+  }
+  if (apiKey.length > 255) {
+    return 'API Key 过长，请检查是否粘贴了错误的内容';
+  }
+  if (/\s/.test(apiKey)) {
+    return 'API Key 不能包含空格或换行';
+  }
+  return null;
 }
 
 /**
@@ -74,7 +96,8 @@ export async function updateApiKey(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const { apiKey } = req.body;
+    const { apiKey: rawApiKey } = req.body;
+    const apiKey = typeof rawApiKey === 'string' ? rawApiKey.trim() : rawApiKey;
 
     // 验证API Key格式
     if (!apiKey || typeof apiKey !== 'string') {
@@ -85,24 +108,16 @@ export async function updateApiKey(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // 简单验证：DeepSeek API Key通常以 sk- 开头
-    if (!apiKey.startsWith('sk-')) {
+    const formatError = validateApiKeyFormat(apiKey);
+    if (formatError) {
       res.status(400).json({
         success: false,
-        message: 'API Key格式不正确，应以 sk- 开头',
+        message: formatError,
       });
       return;
     }
 
-    if (apiKey.length < 20) {
-      res.status(400).json({
-        success: false,
-        message: 'API Key长度不正确',
-      });
-      return;
-    }
-
-    // 更新API Key
+    // 更新当前账号的API Key（仅写入本人记录）
     await update(
       'UPDATE users SET deepseek_api_key = ?, api_key_updated_at = NOW() WHERE id = ?',
       [apiKey, req.user.userId]

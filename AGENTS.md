@@ -54,6 +54,8 @@ server/src/
   utils/bazi.ts          four pillars, ten gods, dayun
   utils/aiPrompt.ts      AI chat protocol: validateAiRequest, buildDeepSeekMessages, stream filter (shared by tests + AI controllers)
   utils/aiOutputSanitizer.ts  strips AI disclaimers/identity preambles from output
+  utils/deepseekKey.ts   per-user API key resolution (personal key from users.deepseek_api_key
+                         takes precedence over DEEPSEEK_API_KEY env; used by ALL AI endpoints)
 server/sql/              MySQL schema + seed (00_init_complete.sql → 02_bazi_tables.sql)
 server/tests/            liuyao.test.js + analyze-ai-chat.test.ts
 ```

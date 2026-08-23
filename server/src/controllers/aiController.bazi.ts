@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import axios from 'axios';
 import { queryOne, update } from '../models/database';
+import { resolveDeepSeekKey } from '../utils/deepseekKey';
 import { BaZiDecoration, DaYunStep } from '../types/bazi';
 import { normalizeLegacyText } from '../utils/textNormalize';
 import {
@@ -163,20 +164,10 @@ export async function analyzeBazi(req: Request, res: Response): Promise<void> {
       }
     }
 
-    // 获取API Key（用户自定义优先）
-    let apiKey = process.env.DEEPSEEK_API_KEY;
+    // 获取API Key：当前用户个人 Key 优先，其次系统 Key
     const apiUrl = (process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com').replace(/\/+$/, '');
     const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
-
-    if (userId) {
-      const user: any = await queryOne(
-        'SELECT deepseek_api_key FROM users WHERE id = ?',
-        [userId]
-      );
-      if (user?.deepseek_api_key) {
-        apiKey = user.deepseek_api_key;
-      }
-    }
+    const { apiKey } = await resolveDeepSeekKey(userId);
 
     if (!apiKey) {
       res.status(500).json({
@@ -329,20 +320,10 @@ export async function analyzeBaziSync(req: Request, res: Response): Promise<void
       return;
     }
 
-    // 获取API Key
-    let apiKey = process.env.DEEPSEEK_API_KEY;
+    // 获取API Key：当前用户个人 Key 优先，其次系统 Key
     const apiUrl = (process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com').replace(/\/+$/, '');
     const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
-
-    if (userId) {
-      const user: any = await queryOne(
-        'SELECT deepseek_api_key FROM users WHERE id = ?',
-        [userId]
-      );
-      if (user?.deepseek_api_key) {
-        apiKey = user.deepseek_api_key;
-      }
-    }
+    const { apiKey } = await resolveDeepSeekKey(userId);
 
     if (!apiKey) {
       res.status(500).json({
@@ -455,20 +436,10 @@ export async function chatBazi(req: Request, res: Response): Promise<void> {
       }
     }
 
-    // API Key（用户自定义优先）
-    let apiKey = process.env.DEEPSEEK_API_KEY;
+    // 获取API Key：当前用户个人 Key 优先，其次系统 Key
     const apiUrl = (process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com').replace(/\/+$/, '');
     const model = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
-
-    if (userId) {
-      const user: any = await queryOne(
-        'SELECT deepseek_api_key FROM users WHERE id = ?',
-        [userId]
-      );
-      if (user?.deepseek_api_key) {
-        apiKey = user.deepseek_api_key;
-      }
-    }
+    const { apiKey } = await resolveDeepSeekKey(userId);
 
     if (!apiKey) {
       res.status(500).json({ success: false, message: '请先在 API Key 设置中配置 DeepSeek API Key' });

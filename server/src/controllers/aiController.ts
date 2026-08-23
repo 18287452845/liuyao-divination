@@ -4,6 +4,7 @@ import { Lunar } from 'lunar-javascript';
 import { normalizeLegacyText } from '../utils/textNormalize';
 import { createAiOutputStreamFilter } from '../utils/aiOutputSanitizer';
 import { queryOne } from '../models/database';
+import { resolveDeepSeekKey } from '../utils/deepseekKey';
 import {
   buildDeepSeekMessages,
   buildGuaRecordContext,
@@ -11,7 +12,6 @@ import {
   validateAiRequest,
 } from '../utils/aiPrompt';
 
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_API_BASE = (process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com').replace(/\/+$/, '');
 const DEEPSEEK_API_URL = `${DEEPSEEK_API_BASE}/v1/chat/completions`;
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
@@ -20,11 +20,14 @@ export const analyzeGua = async (req: Request, res: Response) => {
   try {
     const { benGua, bianGua, decoration, question, gender, bazi, timestamp } = req.body;
 
+    // API Key：当前用户个人 Key 优先，其次系统 Key
+    const { apiKey } = await resolveDeepSeekKey((req as any).user?.userId);
+
     // 检查API Key是否配置
-    if (!DEEPSEEK_API_KEY || DEEPSEEK_API_KEY.trim() === '') {
+    if (!apiKey || apiKey.trim() === '') {
       console.error('DeepSeek API Key未配置');
       return res.status(500).json({
-        error: 'DeepSeek API Key 未配置，请联系管理员配置后再使用 AI 分析功能'
+        error: 'DeepSeek API Key 未配置，请先在 API Key 设置中配置个人 Key'
       });
     }
 
@@ -173,7 +176,7 @@ export const analyzeGua = async (req: Request, res: Response) => {
       },
       {
         headers: {
-          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
         responseType: 'stream'
@@ -604,17 +607,8 @@ export const chatGua = async (req: Request, res: Response) => {
       return res.status(404).json({ error: '卦例不存在或无权访问' });
     }
 
-    // API Key：用户个人 Key 优先，其次系统 Key
-    let apiKey = DEEPSEEK_API_KEY;
-    if (userId) {
-      const user: any = await queryOne(
-        'SELECT deepseek_api_key FROM users WHERE id = ?',
-        [userId]
-      );
-      if (user?.deepseek_api_key) {
-        apiKey = user.deepseek_api_key;
-      }
-    }
+    // API Key：当前用户个人 Key 优先，其次系统 Key
+    const { apiKey } = await resolveDeepSeekKey(userId);
 
     if (!apiKey || apiKey.trim() === '') {
       return res.status(500).json({ error: '请先在 API Key 设置中配置 DeepSeek API Key' });
