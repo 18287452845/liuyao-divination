@@ -14,6 +14,21 @@ export interface DeepSeekKeyResolution {
   source: 'user' | 'system' | 'none';
 }
 
+// .env.example 中的占位符，视为未配置
+const PLACEHOLDER_KEYS = new Set([
+  'sk-your-deepseek-api-key-here',
+  'sk-your-key',
+  'sk-your-actual-key-here',
+]);
+
+function getSystemKey(): string {
+  const key = (process.env.DEEPSEEK_API_KEY || '').trim();
+  if (!key || PLACEHOLDER_KEYS.has(key)) {
+    return '';
+  }
+  return key;
+}
+
 export async function resolveDeepSeekKey(userId?: string): Promise<DeepSeekKeyResolution> {
   if (userId) {
     const user: any = await queryOne(
@@ -26,7 +41,7 @@ export async function resolveDeepSeekKey(userId?: string): Promise<DeepSeekKeyRe
     }
   }
 
-  const systemKey = (process.env.DEEPSEEK_API_KEY || '').trim();
+  const systemKey = getSystemKey();
   if (systemKey !== '') {
     return { apiKey: systemKey, source: 'system' };
   }
@@ -35,5 +50,5 @@ export async function resolveDeepSeekKey(userId?: string): Promise<DeepSeekKeyRe
 }
 
 export function hasSystemDeepSeekKey(): boolean {
-  return (process.env.DEEPSEEK_API_KEY || '').trim() !== '';
+  return getSystemKey() !== '';
 }
